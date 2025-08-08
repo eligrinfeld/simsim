@@ -230,3 +230,12 @@ def fundamentals(ticker: str):
     except Exception:
         # If sec_api not installed or any error occurs, return empty fundamentals
         return {"ticker": ticker, "fundamentals": {}}
+
+
+@app.get("/news")
+def news(query: Optional[str] = None):
+    """
+    Placeholder news search endpoint. Returns an empty list by default.
+    Later can integrate a provider and support pagination.
+    """
+    return {"query": query, "articles": []}
