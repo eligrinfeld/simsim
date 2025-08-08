@@ -1,0 +1,2 @@
+transformers>=4.42
+torch>=2.2; platform_system != "Darwin" or platform_machine != "arm64"

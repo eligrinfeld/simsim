@@ -1,0 +1,21 @@
+universe:
+  tickers: ["AAPL","MSFT","NVDA","AMZN","GOOGL","META"]
+data:
+  start: "2023-01-01"
+  end: "2025-08-01"
+features:
+  factors: ["mom_20","vol_20"]
+sentiment:
+  enabled: false
+signals:
+  blend_weights: {factor: 0.8, sentiment: 0.2}
+portfolio:
+  optimizer: riskfolio
+  method: HRP
+  constraints: { cap_per_name: 0.25 }
+risk:
+  reports: [var,cvar,stress]
+backtest:
+  engine: lean
+outputs:
+  path: artifacts/run_{date}

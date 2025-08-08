@@ -1,0 +1,14 @@
+version: '3.9'
+services:
+  data-api:
+    build: ./services/data_api
+    ports: ['8080:8080']
+    env_file: [.env]
+  sentiment-api:
+    build: ./services/sentiment_api
+    ports: ['8082:8082']
+    env_file: [.env]
+  openbb-bridge:
+    build: ./services/openbb_bridge
+    ports: ['8081:8081']
+    env_file: [.env]
