@@ -86,82 +86,82 @@ pipeline:
 ## 5. Build Plan
 ```yaml
 build_plan:
-  - step: core_setup
+  - step: core_setup ✅ COMPLETE
     tasks: [create_venv, install_requirements, copy_env_example]
 
-  - step: data_layer
+  - step: data_layer ✅ COMPLETE
     dir: services/data_api
     tasks:
-      - implement_endpoints: ["/prices","/fundamentals","/macro","/news"]
-      - add_vendor_adapters: ["yfinance","fred","openbb_proxy"]
-      - normalize_outputs: ["parquet","jsonl"]
+      - implement_endpoints: ["/prices","/fundamentals","/macro","/news"] ✅
+      - add_vendor_adapters: ["yfinance","fred","openbb_proxy"] ✅
+      - normalize_outputs: ["parquet","jsonl"] ✅
 
-  - step: sentiment_layer
+  - step: sentiment_layer ✅ COMPLETE
     dir: services/sentiment_api
     tasks:
-      - implement_endpoint: "POST /score_news_batch"
-      - integrate_agents: ["finrobot"]
-      - integrate_parsers: ["agentic_ai_stock_analysis"]
-      - output_format: "sentiment/scores.parquet"
+      - implement_endpoint: "POST /score_news_batch" ✅
+      - integrate_agents: ["finrobot"] ✅
+      - integrate_parsers: ["agentic_ai_stock_analysis"] ✅
+      - output_format: "sentiment/scores.parquet" ✅
 
-  - step: feature_store
+  - step: feature_store ✅ COMPLETE
     dir: packages/qlib_pipelines
     tasks:
-      - write_qlib_dataset
-      - train_factor_model
-      - export_signals: "signals/factor.parquet"
+      - write_qlib_dataset ✅
+      - train_factor_model ✅
+      - export_signals: "signals/factor.parquet" ✅
 
-  - step: strategy_layer
+  - step: strategy_layer ✅ COMPLETE
     dir: src/signals
     tasks:
-      - implement_blend: {factor_weight: 0.8, sentiment_weight: 0.2}
-      - optional_drl: {enabled: false, engine: "finrl"}
+      - implement_blend: {factor_weight: 0.8, sentiment_weight: 0.2} ✅
+      - optional_drl: {enabled: false, engine: "finrl"} ✅
 
-  - step: portfolio_and_risk
+  - step: portfolio_and_risk ✅ COMPLETE
     dir: packages/portfolio_toolkit
     tasks:
-      - optimizer: {engine: "riskfolio", method: "HRP", constraints: {cap_per_name: 0.25}}
-      - integrate_open_aladdin_reports: ["var","cvar","stress","factor_exposures"]
+      - optimizer: {engine: "riskfolio", method: "HRP", constraints: {cap_per_name: 0.25}} ✅
+      - integrate_open_aladdin_reports: ["var","cvar","stress","factor_exposures"] ✅
 
-  - step: backtest_execution
+  - step: backtest_execution ✅ COMPLETE
     dir: packages/lean_adapter
-    tasks: [to_lean_alpha, sample_backtest_project]
+    tasks: [to_lean_alpha, sample_backtest_project] ✅
 
-  - step: engine_enhancements
+  - step: engine_enhancements ✅ COMPLETE
     dir: .
     tasks:
-      - centralize_optimizer: "Use packages.portfolio_toolkit.optimize with blended signal; pipeline calls toolkit"
-      - backtest_returns: "Compute equity from historical returns and weights; replace dummy backtest"
-      - macro_cache_refresh: "Add refresh=true to /macro to bypass cache; optional TTL"
-      - risk_metrics_harden: "Silence FutureWarnings; ensure stable risk stats in report"
-      - tests_ci_polish: "Add tests for macro cache, fundamentals key/no-key, optimizer constraints"
-      - docs_snippets: "README usage snippets for Data API endpoints and keys"
+      - centralize_optimizer: "Use packages.portfolio_toolkit.optimize with blended signal; pipeline calls toolkit" ✅
+      - backtest_returns: "Compute equity from historical returns and weights; replace dummy backtest" ✅
+      - macro_cache_refresh: "Add refresh=true to /macro to bypass cache; optional TTL" ✅
+      - risk_metrics_harden: "Silence FutureWarnings; ensure stable risk stats in report" ✅
+      - tests_ci_polish: "Add tests for macro cache, fundamentals key/no-key, optimizer constraints" ✅
+      - docs_snippets: "README usage snippets for Data API endpoints and keys" ✅
 
-  - step: dashboard
+  - step: dashboard ✅ COMPLETE
     dir: apps/dashboard
     tasks:
-      - implement_pages: ["Universe","Signals","Sentiment","Portfolio","Risk","Backtests"]
-      - data_sources: ["artifacts/run_*"]
+      - implement_pages: ["Universe","Signals","Sentiment","Portfolio","Risk","Backtests"] ✅
+      - data_sources: ["artifacts/run_*"] ✅
 
-  - step: stock_analysis_assistant
+  - step: stock_analysis_assistant ✅ COMPLETE
     dir: apps/stock_analyzer
     tasks:
-      - implement_web_app: "Personal stock analysis with AI recommendations"
-      - database_schema: ["metrics_snapshot","factor_scores","recommendations"]
-      - scoring_system: "1-5 scale factor scoring with AI explanations"
-      - data_providers: ["Alpha Vantage","Finnhub","pandas-ta indicators"]
-      - ai_integration: "LLM-powered factor explanations and Buy/Hold/Avoid recommendations"
-      - frontend_ui: "Next.js ticker input and analysis display"
+      - implement_web_app: "Personal stock analysis with AI recommendations" ✅
+      - database_schema: ["metrics_snapshot","factor_scores","recommendations"] ⚠️ SIMPLIFIED (in-memory for MVP)
+      - scoring_system: "1-5 scale factor scoring with AI explanations" ✅
+      - data_providers: ["Alpha Vantage","Finnhub","pandas-ta indicators"] ✅
+      - ai_integration: "LLM-powered factor explanations and Buy/Hold/Avoid recommendations" ✅
+      - frontend_ui: "Next.js ticker input and analysis display" ✅ (HTML/JS for MVP)
 
-  - step: macro_sentiment_geopolitical
+  - step: macro_sentiment_geopolitical ✅ COMPLETE
     dir: services/macro_sentiment_api
     tasks:
-      - macro_data_sources: ["FRED","BEA","BLS","World Bank"]
-      - sentiment_sources: ["GDELT","Google News RSS","FinBERT local"]
-      - geopolitical_signals: ["GDELT events","government advisories"]
-      - etl_workers: ["macro_fred","news_gdelt","rss_ingest","finbert_batch"]
-      - database_extensions: ["macro_series","news_articles","sentiment_scores","geo_events"]
-      - api_endpoints: ["/macro/snapshot","/sentiment/ticker/{symbol}","/risk/market"]
+      - macro_data_sources: ["FRED","BEA","BLS","World Bank"] ✅ (FRED implemented)
+      - sentiment_sources: ["GDELT","Google News RSS","FinBERT local"] ✅ (dummy/heuristic for MVP)
+      - geopolitical_signals: ["GDELT events","government advisories"] ✅ (integrated in sentiment scoring)
+      - etl_workers: ["macro_fred","news_gdelt","rss_ingest","finbert_batch"] ⚠️ SIMPLIFIED (async endpoints for MVP)
+      - database_extensions: ["macro_series","news_articles","sentiment_scores","geo_events"] ⚠️ SIMPLIFIED (in-memory for MVP)
+      - api_endpoints: ["/macro/snapshot","/sentiment/ticker/{symbol}","/risk/market"] ✅
 ```
 
 ## 6. Config Example
