@@ -171,16 +171,19 @@ risk_gauges = RiskGauges()
 @app.get("/macro/snapshot")
 async def macro_snapshot():
     """Get latest macroeconomic snapshot"""
-    snapshot = await macro_analyzer.get_latest_snapshot()
-    return {
-        "as_of_date": snapshot.as_of_date.isoformat(),
-        "inflation_yoy": float(snapshot.inflation_yoy) if snapshot.inflation_yoy is not None else None,
-        "core_inflation_yoy": float(snapshot.core_inflation_yoy) if snapshot.core_inflation_yoy is not None else None,
-        "unemployment_rate": float(snapshot.unemployment_rate) if snapshot.unemployment_rate is not None else None,
-        "policy_rate": float(snapshot.policy_rate) if snapshot.policy_rate is not None else None,
-        "yc_10y_2y": float(snapshot.yc_10y_2y) if snapshot.yc_10y_2y is not None else None,
-        "recession_proxy": bool(snapshot.recession_proxy)
-    }
+    try:
+        snapshot = await macro_analyzer.get_latest_snapshot()
+        return {
+            "as_of_date": snapshot.as_of_date.isoformat(),
+            "inflation_yoy": float(snapshot.inflation_yoy) if snapshot.inflation_yoy is not None else None,
+            "core_inflation_yoy": float(snapshot.core_inflation_yoy) if snapshot.core_inflation_yoy is not None else None,
+            "unemployment_rate": float(snapshot.unemployment_rate) if snapshot.unemployment_rate is not None else None,
+            "policy_rate": float(snapshot.policy_rate) if snapshot.policy_rate is not None else None,
+            "yc_10y_2y": float(snapshot.yc_10y_2y) if snapshot.yc_10y_2y is not None else None,
+            "recession_proxy": bool(snapshot.recession_proxy)
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Failed to get macro snapshot: {str(e)}")
 
 @app.get("/macro/series")
 async def macro_series(code: str):
