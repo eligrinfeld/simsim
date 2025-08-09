@@ -59,6 +59,17 @@ def main():
         s = score_sentiment(tickers, start, end, cfg["sentiment"]) or {}
         if isinstance(s, dict) and "score" in s and s["score"] is not None:
             sent_series = s["score"]
+            # Persist sentiment scores as per PRD
+            ensure_dir("sentiment")
+            try:
+                write_series_parquet_or_csv(sent_series, "sentiment/scores.parquet", name="sentiment")
+                write_series_parquet_or_csv(
+                    sent_series,
+                    os.path.join(run_dir, "sentiment_scores.parquet"),
+                    name="sentiment",
+                )
+            except Exception:
+                pass
 
     # 4) Blend signals per config
     bw = cfg.get("signals", {}).get("blend_weights", {"factor": 0.8, "sentiment": 0.2})

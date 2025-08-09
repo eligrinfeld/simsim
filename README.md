@@ -8,6 +8,14 @@ See prd.md for the machine-readable build plan.
 - make run-pipeline
 - make test
 
+## Dashboard
+- streamlit run apps/dashboard/app.py
+- Navigate: Overview, Universe, Signals, Portfolio, Risk, Backtests
+
+## Services
+- Data API: uvicorn services.data_api.app:app --host 127.0.0.1 --port 8080
+- Sentiment API: uvicorn services.sentiment_api.app:app --host 127.0.0.1 --port 8082
+
 ## Data API endpoints
 - GET /health
 - GET /prices?ticker=AAPL&start=2024-01-01&end=2025-01-01
