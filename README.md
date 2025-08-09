@@ -15,6 +15,13 @@ See prd.md for the machine-readable build plan.
 ## Services
 - Data API: uvicorn services.data_api.app:app --host 127.0.0.1 --port 8080
 - Sentiment API: uvicorn services.sentiment_api.app:app --host 127.0.0.1 --port 8082
+- Macro Sentiment API: uvicorn services.macro_sentiment_api.app:app --host 127.0.0.1 --port 8001
+
+## Stock Analysis Assistant
+- Personal stock analysis with AI recommendations
+- cd apps/stock_analyzer && uvicorn app:app --host 127.0.0.1 --port 8000
+- Visit http://localhost:8000 for web interface
+- Features: 1-5 scale factor scoring, macro/sentiment integration, Buy/Hold/Avoid decisions
 
 ## Data API endpoints
 - GET /health
@@ -26,8 +33,10 @@ See prd.md for the machine-readable build plan.
 
 ## Environment
 Create .env with your keys:
-- FRED_API_KEY=...
-- SEC_API_KEY=...
+- FRED_API_KEY=... (for macro data)
+- SEC_API_KEY=... (for SEC filings)
+- ALPHAVANTAGE_API_KEY=... (for stock prices in analyzer)
+- FINNHUB_API_KEY=... (for fundamentals in analyzer)
 
 ## Artifacts
 Pipeline writes:

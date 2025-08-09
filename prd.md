@@ -142,6 +142,26 @@ build_plan:
     tasks:
       - implement_pages: ["Universe","Signals","Sentiment","Portfolio","Risk","Backtests"]
       - data_sources: ["artifacts/run_*"]
+
+  - step: stock_analysis_assistant
+    dir: apps/stock_analyzer
+    tasks:
+      - implement_web_app: "Personal stock analysis with AI recommendations"
+      - database_schema: ["metrics_snapshot","factor_scores","recommendations"]
+      - scoring_system: "1-5 scale factor scoring with AI explanations"
+      - data_providers: ["Alpha Vantage","Finnhub","pandas-ta indicators"]
+      - ai_integration: "LLM-powered factor explanations and Buy/Hold/Avoid recommendations"
+      - frontend_ui: "Next.js ticker input and analysis display"
+
+  - step: macro_sentiment_geopolitical
+    dir: services/macro_sentiment_api
+    tasks:
+      - macro_data_sources: ["FRED","BEA","BLS","World Bank"]
+      - sentiment_sources: ["GDELT","Google News RSS","FinBERT local"]
+      - geopolitical_signals: ["GDELT events","government advisories"]
+      - etl_workers: ["macro_fred","news_gdelt","rss_ingest","finbert_batch"]
+      - database_extensions: ["macro_series","news_articles","sentiment_scores","geo_events"]
+      - api_endpoints: ["/macro/snapshot","/sentiment/ticker/{symbol}","/risk/market"]
 ```
 
 ## 6. Config Example

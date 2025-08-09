@@ -1,0 +1,22 @@
+Collecting pandas-ta
+  Downloading pandas_ta-0.3.14b.tar.gz (115 kB)
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: pandas in ./.venv/lib/python3.12/site-packages (from pandas-ta) (2.3.1)
+Requirement already satisfied: numpy>=1.26.0 in ./.venv/lib/python3.12/site-packages (from pandas->pandas-ta) (2.3.2)
+Requirement already satisfied: python-dateutil>=2.8.2 in ./.venv/lib/python3.12/site-packages (from pandas->pandas-ta) (2.9.0.post0)
+Requirement already satisfied: pytz>=2020.1 in ./.venv/lib/python3.12/site-packages (from pandas->pandas-ta) (2025.2)
+Requirement already satisfied: tzdata>=2022.7 in ./.venv/lib/python3.12/site-packages (from pandas->pandas-ta) (2025.2)
+Requirement already satisfied: six>=1.5 in ./.venv/lib/python3.12/site-packages (from python-dateutil>=2.8.2->pandas->pandas-ta) (1.17.0)
+Building wheels for collected packages: pandas-ta
+  Building wheel for pandas-ta (pyproject.toml): started
+  Building wheel for pandas-ta (pyproject.toml): finished with status 'done'
+  Created wheel for pandas-ta: filename=pandas_ta-0.3.14b0-py3-none-any.whl size=218984 sha256=2350fa733a5c6b8ce90044f4266f83bb71f10a05d7a967064dab52d0416ac26a
+  Stored in directory: /Users/eligrinfeld/Library/Caches/pip/wheels/fd/ed/18/2a12fd1b7906c63efca6accb351929f2c7f6bbc674e1c0ba5d
+Successfully built pandas-ta
+Installing collected packages: pandas-ta
+Successfully installed pandas-ta-0.3.14b0
