@@ -5,6 +5,13 @@ import os
 import re
 import requests
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, rely on system env vars
+
 app = FastAPI(title="Data API Gateway")
 
 

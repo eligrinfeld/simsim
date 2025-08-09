@@ -32,11 +32,14 @@ See prd.md for the machine-readable build plan.
   - Requires SEC_API_KEY; returns recent 10-K/10-Q metadata via sec-api
 
 ## Environment
-Create .env with your keys:
-- FRED_API_KEY=... (for macro data)
-- SEC_API_KEY=... (for SEC filings)
-- ALPHAVANTAGE_API_KEY=... (for stock prices in analyzer)
-- FINNHUB_API_KEY=... (for fundamentals in analyzer)
+Create .env with your API keys for live data:
+- **FRED_API_KEY**=... (for live macro data - get free at https://fred.stlouisfed.org/docs/api/api_key.html)
+- **SEC_API_KEY**=... (for SEC filings - get free at https://sec-api.io/)
+- **ALPHAVANTAGE_API_KEY**=... (for live stock prices - get free at https://www.alphavantage.co/support/#api-key)
+- **FINNHUB_API_KEY**=... (for live fundamentals - get free at https://finnhub.io/register)
+
+**Without API keys**: System gracefully falls back to enhanced realistic dummy data.
+**With API keys**: System uses live market data for real-time analysis.
 
 ## Artifacts
 Pipeline writes:
