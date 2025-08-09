@@ -37,6 +37,13 @@ Create .env with your API keys for live data:
 - **SEC_API_KEY**=... (for SEC filings - get free at https://sec-api.io/)
 - **ALPHAVANTAGE_API_KEY**=... (for live stock prices - get free at https://www.alphavantage.co/support/#api-key)
 - **FINNHUB_API_KEY**=... (for live fundamentals - get free at https://finnhub.io/register)
+- **NEWS_API_KEY**=... (for live news sentiment - get free at https://newsapi.org/ - 1000 requests/day)
+
+**News Integration Features:**
+- **With NEWS_API_KEY**: Live news articles from NewsAPI.org + Google News RSS
+- **Without NEWS_API_KEY**: Google News RSS only (free, no key required)
+- **Enhanced Sentiment**: Advanced keyword analysis with weighted scoring
+- **Geopolitical Detection**: Flags articles with geopolitical content
 
 **Without API keys**: System gracefully falls back to enhanced realistic dummy data.
 **With API keys**: System uses live market data for real-time analysis.

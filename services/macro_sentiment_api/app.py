@@ -1,11 +1,12 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from typing import Optional, Dict, Any, List
 import os
 import httpx
 import pandas as pd
 from datetime import datetime, date, timedelta
 import json
-import asyncio
+import re
+import feedparser
 from dataclasses import dataclass
 
 # Load environment variables from .env file
@@ -19,6 +20,7 @@ app = FastAPI(title="Macro Sentiment API")
 
 # Configuration
 FRED_API_KEY = os.getenv("FRED_API_KEY", "")
+NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 GDELT_BASE = os.getenv("GDELT_BASE", "https://data.gdeltproject.org/gdeltv2")
 
 @dataclass
@@ -118,6 +120,118 @@ class FREDClient:
             self.api_key = original_key
             return result
 
+class NewsClient:
+    def __init__(self, api_key: str = ""):
+        self.api_key = api_key
+        self.news_api_base = "https://newsapi.org/v2"
+
+    async def fetch_news_api(self, symbol: str, days: int = 7) -> List[Dict[str, Any]]:
+        """Fetch news from NewsAPI.org"""
+        if not self.api_key:
+            print(f"⚠️ NEWS_API_KEY not configured, skipping NewsAPI for {symbol}")
+            return []
+
+        # Calculate date range
+        to_date = datetime.now().date()
+        from_date = to_date - timedelta(days=days)
+
+        # Search query for the stock
+        query = f'"{symbol}" OR "{symbol} stock" OR "{symbol} shares"'
+
+        params = {
+            "q": query,
+            "from": from_date.isoformat(),
+            "to": to_date.isoformat(),
+            "sortBy": "publishedAt",
+            "language": "en",
+            "apiKey": self.api_key,
+            "pageSize": 50  # Max articles
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                r = await client.get(f"{self.news_api_base}/everything", params=params)
+                r.raise_for_status()
+                data = r.json()
+
+            articles = data.get("articles", [])
+            print(f"✅ Got {len(articles)} articles from NewsAPI for {symbol}")
+
+            return [
+                {
+                    "title": article.get("title", ""),
+                    "description": article.get("description", ""),
+                    "url": article.get("url", ""),
+                    "published_at": article.get("publishedAt", ""),
+                    "source": article.get("source", {}).get("name", "NewsAPI"),
+                    "content": article.get("content", "")
+                }
+                for article in articles
+                if article.get("title") and symbol.upper() in article.get("title", "").upper()
+            ]
+
+        except Exception as e:
+            print(f"⚠️ NewsAPI error for {symbol}: {e}")
+            return []
+
+    async def fetch_google_news_rss(self, symbol: str) -> List[Dict[str, Any]]:
+        """Fetch news from Google News RSS (free alternative)"""
+        try:
+            # Google News RSS search URL
+            query = f"{symbol} stock"
+            rss_url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+
+            async with httpx.AsyncClient(timeout=30) as client:
+                r = await client.get(rss_url)
+                r.raise_for_status()
+
+            # Parse RSS feed
+            feed = feedparser.parse(r.text)
+            articles = []
+
+            for entry in feed.entries[:20]:  # Limit to 20 articles
+                articles.append({
+                    "title": entry.get("title", ""),
+                    "description": entry.get("summary", ""),
+                    "url": entry.get("link", ""),
+                    "published_at": entry.get("published", ""),
+                    "source": "Google News RSS",
+                    "content": entry.get("summary", "")
+                })
+
+            print(f"✅ Got {len(articles)} articles from Google News RSS for {symbol}")
+            return articles
+
+        except Exception as e:
+            print(f"⚠️ Google News RSS error for {symbol}: {e}")
+            return []
+
+    async def get_ticker_news(self, symbol: str, days: int = 7) -> List[Dict[str, Any]]:
+        """Get news for a ticker from multiple sources"""
+        all_articles = []
+
+        # Try NewsAPI first (if key available)
+        if self.api_key:
+            news_api_articles = await self.fetch_news_api(symbol, days)
+            all_articles.extend(news_api_articles)
+
+        # Always try Google News RSS as backup/supplement
+        rss_articles = await self.fetch_google_news_rss(symbol)
+        all_articles.extend(rss_articles)
+
+        # Remove duplicates based on title similarity
+        unique_articles = []
+        seen_titles = set()
+
+        for article in all_articles:
+            title_key = article["title"].lower().strip()[:50]  # First 50 chars
+            if title_key not in seen_titles:
+                seen_titles.add(title_key)
+                unique_articles.append(article)
+
+        print(f"✅ Total unique articles for {symbol}: {len(unique_articles)}")
+        return unique_articles[:30]  # Limit to 30 most recent
+
 class MacroAnalyzer:
     def __init__(self):
         self.fred = FREDClient(FRED_API_KEY)
@@ -165,11 +279,122 @@ class MacroAnalyzer:
 
 class SentimentAnalyzer:
     def __init__(self):
-        pass
+        self.news_client = NewsClient(NEWS_API_KEY)
+
+    def analyze_text_sentiment(self, text: str) -> float:
+        """Analyze sentiment of text using enhanced keyword analysis"""
+        if not text:
+            return 0.0
+
+        text = text.lower()
+
+        # Enhanced positive keywords with weights
+        positive_words = {
+            # Strong positive (weight 2.0)
+            "surge": 2.0, "soar": 2.0, "rally": 2.0, "boom": 2.0, "breakthrough": 2.0,
+            "beat": 1.5, "exceed": 1.5, "outperform": 1.5, "strong": 1.5, "robust": 1.5,
+            # Moderate positive (weight 1.0)
+            "gain": 1.0, "rise": 1.0, "up": 1.0, "positive": 1.0, "growth": 1.0,
+            "improve": 1.0, "increase": 1.0, "bullish": 1.0, "optimistic": 1.0
+        }
+
+        # Enhanced negative keywords with weights
+        negative_words = {
+            # Strong negative (weight -2.0)
+            "plunge": -2.0, "crash": -2.0, "collapse": -2.0, "plummet": -2.0, "disaster": -2.0,
+            "miss": -1.5, "disappoint": -1.5, "underperform": -1.5, "weak": -1.5, "poor": -1.5,
+            # Moderate negative (weight -1.0)
+            "fall": -1.0, "drop": -1.0, "down": -1.0, "negative": -1.0, "decline": -1.0,
+            "decrease": -1.0, "bearish": -1.0, "pessimistic": -1.0, "concern": -1.0
+        }
+
+        # Calculate weighted sentiment score
+        score = 0.0
+        word_count = 0
+
+        for word, weight in positive_words.items():
+            if word in text:
+                score += weight
+                word_count += 1
+
+        for word, weight in negative_words.items():
+            if word in text:
+                score += weight  # weight is already negative
+                word_count += 1
+
+        # Normalize score to -1 to 1 range
+        if word_count > 0:
+            normalized_score = max(-1.0, min(1.0, score / max(word_count, 3)))
+        else:
+            normalized_score = 0.0
+
+        return normalized_score
     
     async def get_ticker_sentiment(self, symbol: str, days: int = 30) -> Dict[str, Any]:
-        """Get sentiment analysis for a ticker"""
-        # Enhanced implementation with realistic sentiment patterns
+        """Get sentiment analysis for a ticker using real news data"""
+        try:
+            # Fetch real news articles
+            articles = await self.news_client.get_ticker_news(symbol, days)
+
+            if not articles:
+                print(f"⚠️ No news articles found for {symbol}, using fallback sentiment")
+                return await self._get_fallback_sentiment(symbol, days)
+
+            # Analyze sentiment of each article
+            sentiment_scores = []
+            geopolitics_keywords = ["china", "trade war", "tariff", "sanction", "regulation",
+                                  "government", "policy", "geopolitical", "international"]
+            geopolitics_flag = False
+
+            for article in articles:
+                # Combine title and description for sentiment analysis
+                text = f"{article.get('title', '')} {article.get('description', '')}"
+
+                # Analyze sentiment
+                score = self.analyze_text_sentiment(text)
+                sentiment_scores.append(score)
+
+                # Check for geopolitical content
+                if any(keyword in text.lower() for keyword in geopolitics_keywords):
+                    geopolitics_flag = True
+
+            # Calculate average sentiment
+            if sentiment_scores:
+                avg_score = sum(sentiment_scores) / len(sentiment_scores)
+                # Apply recency weighting (more recent articles have higher weight)
+                weights = [1.0 - (i * 0.1) for i in range(len(sentiment_scores))]
+                weights = [max(0.1, w) for w in weights]  # Minimum weight of 0.1
+
+                weighted_avg = sum(score * weight for score, weight in zip(sentiment_scores, weights))
+                weighted_avg /= sum(weights)
+                avg_score = weighted_avg
+            else:
+                avg_score = 0.0
+
+            return {
+                "symbol": symbol,
+                "window_days": days,
+                "avg_score": round(avg_score, 3),
+                "n_articles": len(articles),
+                "geopolitics_flag": geopolitics_flag,
+                "last_updated": datetime.now().isoformat(),
+                "data_source": "live_news",
+                "articles_sample": [
+                    {
+                        "title": article["title"][:100] + "..." if len(article["title"]) > 100 else article["title"],
+                        "source": article["source"],
+                        "published_at": article["published_at"]
+                    }
+                    for article in articles[:5]  # Include sample of first 5 articles
+                ]
+            }
+
+        except Exception as e:
+            print(f"⚠️ Error getting sentiment for {symbol}: {e}")
+            return await self._get_fallback_sentiment(symbol, days)
+
+    async def _get_fallback_sentiment(self, symbol: str, days: int) -> Dict[str, Any]:
+        """Fallback sentiment analysis using enhanced heuristics"""
         import random
         random.seed(hash(symbol) % 1000)
 
@@ -204,7 +429,7 @@ class SentimentAnalyzer:
             "n_articles": n_articles,
             "geopolitics_flag": geopolitics_flag,
             "last_updated": datetime.now().isoformat(),
-            "data_source": "enhanced_heuristic"  # Indicate this is enhanced vs basic dummy
+            "data_source": "enhanced_heuristic"
         }
 
 class RiskGauges:
@@ -298,6 +523,22 @@ async def ticker_sentiment(symbol: str):
     except Exception as e:
         raise HTTPException(500, f"Failed to get sentiment for {symbol}: {str(e)}")
 
+@app.get("/news/ticker/{symbol}")
+async def ticker_news(symbol: str, days: int = 7):
+    """Get news articles for a specific ticker"""
+    try:
+        news_client = NewsClient(NEWS_API_KEY)
+        articles = await news_client.get_ticker_news(symbol.upper(), days)
+        return {
+            "symbol": symbol.upper(),
+            "days": days,
+            "total_articles": len(articles),
+            "articles": articles,
+            "last_updated": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Failed to get news for {symbol}: {str(e)}")
+
 @app.get("/risk/market")
 async def market_risk():
     """Get market risk indicators"""
@@ -313,7 +554,14 @@ async def health():
     return {
         "status": "healthy",
         "service": "macro_sentiment_api",
-        "fred_key_configured": bool(FRED_API_KEY)
+        "fred_key_configured": bool(FRED_API_KEY),
+        "news_api_key_configured": bool(NEWS_API_KEY),
+        "features": {
+            "live_news": bool(NEWS_API_KEY),
+            "google_news_rss": True,  # Always available
+            "enhanced_sentiment": True,
+            "macro_data": bool(FRED_API_KEY)
+        }
     }
 
 # Scoring functions for integration with stock analyzer
