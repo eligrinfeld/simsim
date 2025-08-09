@@ -174,12 +174,12 @@ async def macro_snapshot():
     snapshot = await macro_analyzer.get_latest_snapshot()
     return {
         "as_of_date": snapshot.as_of_date.isoformat(),
-        "inflation_yoy": snapshot.inflation_yoy,
-        "core_inflation_yoy": snapshot.core_inflation_yoy,
-        "unemployment_rate": snapshot.unemployment_rate,
-        "policy_rate": snapshot.policy_rate,
-        "yc_10y_2y": snapshot.yc_10y_2y,
-        "recession_proxy": snapshot.recession_proxy
+        "inflation_yoy": float(snapshot.inflation_yoy) if snapshot.inflation_yoy is not None else None,
+        "core_inflation_yoy": float(snapshot.core_inflation_yoy) if snapshot.core_inflation_yoy is not None else None,
+        "unemployment_rate": float(snapshot.unemployment_rate) if snapshot.unemployment_rate is not None else None,
+        "policy_rate": float(snapshot.policy_rate) if snapshot.policy_rate is not None else None,
+        "yc_10y_2y": float(snapshot.yc_10y_2y) if snapshot.yc_10y_2y is not None else None,
+        "recession_proxy": bool(snapshot.recession_proxy)
     }
 
 @app.get("/macro/series")
@@ -289,7 +289,18 @@ async def get_macro_score():
     """Get macro regime score for stock analysis"""
     snapshot = await macro_analyzer.get_latest_snapshot()
     score = score_macro_regime(snapshot)
-    return {"score": score, "max_score": 10, "snapshot": snapshot}
+    return {
+        "score": int(score),
+        "max_score": 10,
+        "snapshot": {
+            "as_of_date": snapshot.as_of_date.isoformat(),
+            "inflation_yoy": float(snapshot.inflation_yoy) if snapshot.inflation_yoy is not None else None,
+            "unemployment_rate": float(snapshot.unemployment_rate) if snapshot.unemployment_rate is not None else None,
+            "policy_rate": float(snapshot.policy_rate) if snapshot.policy_rate is not None else None,
+            "yc_10y_2y": float(snapshot.yc_10y_2y) if snapshot.yc_10y_2y is not None else None,
+            "recession_proxy": bool(snapshot.recession_proxy)
+        }
+    }
 
 @app.get("/scoring/market_risk")
 async def get_market_risk_score():
