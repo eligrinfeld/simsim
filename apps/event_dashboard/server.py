@@ -1,5 +1,5 @@
 from __future__ import annotations
-import asyncio, random, time, uuid, os, json, math
+import asyncio, random, time, uuid, os, json, math, traceback
 from dataclasses import dataclass, field, asdict
 from typing import Any, Callable, Deque, Dict, List, Optional
 from collections import defaultdict, deque
@@ -182,6 +182,12 @@ async def pine_preview(payload: Dict[str, Any]):
         code = payload.get("code", "") if isinstance(payload, dict) else ""
         if not code:
             return JSONResponse(status_code=400, content={"error": "missing code"})
+        # Ensure we have some candles for evaluation; if the live loop hasn't produced any yet, seed a few
+        if not candles:
+            base = 450.0
+            last = base
+            for _ in range(50):
+                k = next_candle(last); last = k["close"]; candles.append(k)
         comp = compile_pine(code)
         window = candles[-400:] if len(candles) >= 2 else candles
         res = comp.run(window)
