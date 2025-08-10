@@ -55,6 +55,14 @@
     <span class="badge">Live demo</span>
   </header>
   <div class="filters">
+    <select id="symbolSelector" style="background:#0e1318;color:#e5e7eb;border:1px solid #2b3645;border-radius:4px;padding:4px 8px;margin-right:12px;">
+      <option value="SPY">SPY</option>
+      <option value="QQQ">QQQ</option>
+      <option value="AAPL">AAPL</option>
+      <option value="MSFT">MSFT</option>
+      <option value="TSLA">TSLA</option>
+      <option value="NVDA">NVDA</option>
+    </select>
     <span class="chip active" data-filter="macro">Macro</span>
     <span class="chip active" data-filter="news">News</span>
     <span class="chip active" data-filter="signals">Signals</span>
@@ -239,7 +247,7 @@
       return { macdLine, signalLine, hist };
     }
 
-    fetch('/candles').then(r => r.json()).then(rows => {
+    fetch(`/candles?symbol=${currentSymbol}`).then(r => r.json()).then(rows => {
       candleSeries.setData(rows.map(k => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close })));
       const closes = rows.map(k=>k.close);
       const times = rows.map(k=>k.time);
@@ -271,6 +279,40 @@
     }
 
     const wsState = document.getElementById('wsState');
+
+    // Symbol management
+    let currentSymbol = 'SPY';
+    const symbolSelector = document.getElementById('symbolSelector');
+
+    async function switchSymbol(newSymbol) {
+      if (newSymbol === currentSymbol) return;
+
+      console.log(`Switching from ${currentSymbol} to ${newSymbol}`);
+      currentSymbol = newSymbol;
+
+      // Clear current chart data
+      markers.length = 0;
+      candleSeries.setMarkers([]);
+
+      // Clear event tracks
+      document.getElementById('macroLane').innerHTML = '';
+      document.getElementById('newsLane').innerHTML = '';
+      document.getElementById('signalsLane').innerHTML = '';
+
+      // Load new symbol data
+      try {
+        const res = await fetch(`/candles?symbol=${newSymbol}`);
+        const data = await res.json();
+        candleSeries.setData(data);
+        console.log(`Loaded ${data.length} candles for ${newSymbol}`);
+      } catch (err) {
+        console.error('Failed to load symbol data:', err);
+      }
+    }
+
+    symbolSelector.addEventListener('change', (e) => {
+      switchSymbol(e.target.value);
+    });
     const lastEvt = document.getElementById('lastEvt');
 
     // Tracks & Drawer state
@@ -624,6 +666,11 @@
 
 
     function handleEvent(evt){
+      // Filter events by current symbol (except for macro events which are global)
+      if (evt.key && evt.key !== currentSymbol && evt.type !== 'MacroRelease' && evt.type !== 'MacroShock') {
+        return;
+      }
+
       lastEvt.textContent = `${evt.type} @ ${new Date(evt.ts * 1000).toLocaleTimeString()}`;
       rememberTs(evt.ts||0);
       if (evt.type === 'Bar') {
