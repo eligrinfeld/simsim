@@ -47,6 +47,9 @@
     <span class="chip active" data-filter="news">News</span>
     <span class="chip active" data-filter="signals">Signals</span>
     <span class="chip" id="clearPills">Clear</span>
+    <span class="chip" data-indic="vol">Vol</span>
+    <span class="chip" data-indic="rsi">RSI</span>
+    <span class="chip" data-indic="macd">MACD</span>
   </div>
   <div id="chart"></div>
   <div class="legend">
@@ -92,11 +95,61 @@
     const candleSeries = chart.addCandlestickSeries({
       upColor: '#22c55e', downColor: '#ef4444', borderDownColor: '#ef4444', borderUpColor: '#22c55e', wickDownColor: '#ef4444', wickUpColor: '#22c55e'
     });
+    const volSeries = chart.addHistogramSeries({ color: 'rgba(100, 181, 246, 0.4)', priceFormat: { type: 'volume' }, priceScaleId: 'left' });
+    const rsiSeries = chart.addLineSeries({ color: '#f97316', lineWidth: 1, priceScaleId: 'overlay' });
+    const macdSeries = chart.addLineSeries({ color: '#a78bfa', lineWidth: 1, priceScaleId: 'overlay' });
+    const macdSignalSeries = chart.addLineSeries({ color: '#60a5fa', lineWidth: 1, priceScaleId: 'overlay' });
+    const macdHistSeries = chart.addHistogramSeries({ color: 'rgba(167, 139, 250, 0.4)', priceScaleId: 'overlay' });
 
     const markers = [];
 
+    function ema(values, period){
+      const k = 2 / (period + 1);
+      let prev;
+      return values.map((v,i) => {
+        if (i===0){ prev = v; return v; }
+        prev = v * k + prev * (1-k);
+        return prev;
+      });
+    }
+    function rsi(closes, period=14){
+      const gains = []; const losses = [];
+      for (let i=1;i<closes.length;i++){
+        const ch = closes[i]-closes[i-1];
+        gains.push(Math.max(0,ch)); losses.push(Math.max(0,-ch));
+      }
+      let avgGain = gains.slice(0, period).reduce((a,b)=>a+b,0)/period;
+      let avgLoss = losses.slice(0, period).reduce((a,b)=>a+b,0)/period;
+      const out = new Array(closes.length).fill(null);
+      out[period] = 100 - (100/(1 + (avgGain/(avgLoss||1e-9))));
+      for (let i=period+1;i<closes.length;i++){
+        avgGain = (avgGain*(period-1) + gains[i-1]) / period;
+        avgLoss = (avgLoss*(period-1) + losses[i-1]) / period;
+        out[i] = 100 - (100/(1 + (avgGain/(avgLoss||1e-9))));
+      }
+      return out;
+    }
+    function macd(closes, fast=12, slow=26, signal=9){
+      const emaFast = ema(closes, fast);
+      const emaSlow = ema(closes, slow);
+      const macdLine = emaFast.map((v,i)=> v - (emaSlow[i]||v));
+      const signalLine = ema(macdLine.map(v=>v||0), signal);
+      const hist = macdLine.map((v,i)=> (v||0) - (signalLine[i]||0));
+      return { macdLine, signalLine, hist };
+    }
+
     fetch('/candles').then(r => r.json()).then(rows => {
       candleSeries.setData(rows.map(k => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close })));
+      const closes = rows.map(k=>k.close);
+      const times = rows.map(k=>k.time);
+      // indicators
+      volSeries.setData(rows.map(k=>({ time:k.time, value:k.volume })));
+      const rsiVals = rsi(closes,14).map((v,i)=> v==null?null:{ time: times[i], value: v });
+      rsiSeries.setData(rsiVals.filter(Boolean));
+      const m = macd(closes);
+      macdSeries.setData(m.macdLine.map((v,i)=>({ time: times[i], value: v||0 })));
+      macdSignalSeries.setData(m.signalLine.map((v,i)=>({ time: times[i], value: v||0 })));
+      macdHistSeries.setData(m.hist.map((v,i)=>({ time: times[i], value: v||0 })));
     });
 
     function addMarker(time, position, color, shape, text, id) {
@@ -255,4 +308,6 @@
   </script>
 </body>
 </html>
+
+
 
