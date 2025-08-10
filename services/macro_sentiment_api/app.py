@@ -37,7 +37,7 @@ class FREDClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.base_url = "https://api.stlouisfed.org/fred/series/observations"
-    
+
     async def fetch_series(self, series_id: str, limit: int = 100) -> pd.DataFrame:
         """Fetch FRED time series data"""
         if not self.api_key:
@@ -67,7 +67,7 @@ class FREDClient:
                 'date': dates,
                 'value': values
             })
-        
+
         params = {
             "series_id": series_id,
             "api_key": self.api_key,
@@ -235,7 +235,7 @@ class NewsClient:
 class MacroAnalyzer:
     def __init__(self):
         self.fred = FREDClient(FRED_API_KEY)
-    
+
     async def get_latest_snapshot(self) -> MacroSnapshot:
         """Get latest macro economic snapshot"""
         try:
@@ -245,23 +245,23 @@ class MacroAnalyzer:
             ffr_df = await self.fred.fetch_series("FEDFUNDS", 12)  # Fed Funds Rate
             dgs10_df = await self.fred.fetch_series("DGS10", 30)  # 10Y Treasury
             dgs2_df = await self.fred.fetch_series("DGS2", 30)   # 2Y Treasury
-            
+
             snapshot = MacroSnapshot(as_of_date=date.today())
-            
+
             # Calculate inflation YoY
             if len(cpi_df) >= 12:
                 latest_cpi = cpi_df.iloc[-1]["value"]
                 year_ago_cpi = cpi_df.iloc[-12]["value"]
                 snapshot.inflation_yoy = (latest_cpi / year_ago_cpi - 1) if year_ago_cpi > 0 else None
-            
+
             # Latest unemployment rate
             if not unrate_df.empty:
                 snapshot.unemployment_rate = unrate_df.iloc[-1]["value"] / 100  # Convert to decimal
-            
+
             # Latest policy rate
             if not ffr_df.empty:
                 snapshot.policy_rate = ffr_df.iloc[-1]["value"] / 100  # Convert to decimal
-            
+
             # Yield curve spread
             if not dgs10_df.empty and not dgs2_df.empty:
                 latest_10y = dgs10_df.iloc[-1]["value"]
@@ -270,9 +270,9 @@ class MacroAnalyzer:
                     snapshot.yc_10y_2y = (latest_10y - latest_2y) / 100  # Convert to decimal
                     # Recession proxy: inverted yield curve
                     snapshot.recession_proxy = snapshot.yc_10y_2y < 0
-            
+
             return snapshot
-            
+
         except Exception as e:
             # Return default snapshot on error
             return MacroSnapshot(as_of_date=date.today())
@@ -329,7 +329,7 @@ class SentimentAnalyzer:
             normalized_score = 0.0
 
         return normalized_score
-    
+
     async def get_ticker_sentiment(self, symbol: str, days: int = 30) -> Dict[str, Any]:
         """Get sentiment analysis for a ticker using real news data"""
         try:
@@ -435,7 +435,7 @@ class SentimentAnalyzer:
 class RiskGauges:
     def __init__(self):
         pass
-    
+
     async def get_market_risk(self) -> Dict[str, Any]:
         """Get market risk indicators"""
         # Enhanced implementation with realistic market risk patterns
@@ -503,7 +503,7 @@ async def macro_series(code: str):
         df = await macro_analyzer.fred.fetch_series(code, 100)
         if df.empty:
             raise HTTPException(404, f"No data found for series {code}")
-        
+
         return {
             "series_id": code,
             "data": [
@@ -568,57 +568,57 @@ async def health():
 def score_macro_regime(snapshot: MacroSnapshot) -> int:
     """Score macro regime (0-10 points)"""
     points = 0
-    
+
     if snapshot.inflation_yoy is not None:
         if snapshot.inflation_yoy < 0.03:  # Below 3%
             points += 3
         elif snapshot.inflation_yoy < 0.05:  # Below 5%
             points += 1
-    
+
     if snapshot.yc_10y_2y is not None:
         if snapshot.yc_10y_2y > 0:  # Normal yield curve
             points += 3
         elif snapshot.yc_10y_2y > -0.005:  # Slightly inverted
             points += 1
-    
+
     if snapshot.unemployment_rate is not None:
         if snapshot.unemployment_rate < 0.05:  # Below 5%
             points += 2
         elif snapshot.unemployment_rate < 0.07:  # Below 7%
             points += 1
-    
+
     if snapshot.recession_proxy:
         points -= 4
-    
+
     return max(0, min(10, points))
 
 def score_market_risk(vix_percentile: float, put_call_ratio: float, breadth_pct: float) -> int:
     """Score market risk (0-10 points)"""
     points = 0
-    
+
     if vix_percentile < 0.3:
         points += 4
     elif vix_percentile < 0.6:
         points += 2
-    
+
     if put_call_ratio < 1.0:  # More calls than puts
         points += 2
-    
+
     if breadth_pct > 0.6:  # Good breadth
         points += 2
     elif breadth_pct < 0.3:  # Poor breadth
         points -= 2
-    
+
     return max(0, min(10, points))
 
 def score_sentiment(avg_score: float, geopolitics_flag: bool) -> int:
     """Score news sentiment (0-10 points)"""
     # Map -1..1 to 0..10
     points = int(round((avg_score + 1) * 5))
-    
+
     if geopolitics_flag:
         points -= 3
-    
+
     return max(0, min(10, points))
 
 @app.get("/scoring/macro")
@@ -656,6 +656,35 @@ async def get_sentiment_score(symbol: str):
     sentiment = await sentiment_analyzer.get_ticker_sentiment(symbol.upper())
     score = score_sentiment(sentiment["avg_score"], sentiment["geopolitics_flag"])
     return {"score": score, "max_score": 10, "sentiment": sentiment}
+
+@app.get("/sentiment/series/{symbol}")
+async def get_sentiment_series(symbol: str, days: int = 30):
+    """Return a simple daily sentiment time series for the given ticker (-1..1)."""
+    try:
+        articles = await sentiment_analyzer.news_client.get_ticker_news(symbol.upper(), days)
+        if not articles:
+            # Fallback: flat neutral series
+            from datetime import timedelta, date as _date
+            series = [{"date": (_date.today() - timedelta(days=i)).isoformat(), "score": 0.0} for i in range(days)][::-1]
+            return {"symbol": symbol.upper(), "days": days, "series": series}
+        # Aggregate scores by day
+        buckets = {}
+        for a in articles:
+            text = f"{a.get('title','')} {a.get('description') or a.get('text') or ''}"
+            s = sentiment_analyzer.analyze_text_sentiment(text)
+            dt = (a.get('published_at') or a.get('date') or '').split('T')[0]
+            if not dt:
+                continue
+            if dt not in buckets:
+                buckets[dt] = []
+            buckets[dt].append(float(s))
+        # Build series sorted by date
+        keys = sorted(buckets.keys())
+        series = [{"date": k, "score": round(sum(v)/len(v), 3)} for k, v in ((k, buckets[k]) for k in keys)]
+        return {"symbol": symbol.upper(), "days": days, "series": series}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to build sentiment series for {symbol}: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn

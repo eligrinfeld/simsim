@@ -11,6 +11,6 @@ down:
 run-pipeline:
 	source .venv/bin/activate && python -m src.core.pipeline --config configs/example_equity.yaml
 test:
-	source .venv/bin/activate && pytest
+	source .venv/bin/activate && python -m pytest
 format:
 	source .venv/bin/activate && python -m pip install ruff black && ruff check . --fix && black .
