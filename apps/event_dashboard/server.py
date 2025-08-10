@@ -178,19 +178,26 @@ from .pine_adapter import compile_pine
 
 @app.post("/strategy/pine/preview")
 async def pine_preview(payload: Dict[str, Any]):
+    print(f"DEBUG: pine_preview called with payload type: {type(payload)}")
     try:
         code = payload.get("code", "") if isinstance(payload, dict) else ""
+        print(f"DEBUG: extracted code length: {len(code)}")
         if not code:
             return JSONResponse(status_code=400, content={"error": "missing code"})
         # Ensure we have some candles for evaluation; if the live loop hasn't produced any yet, seed a few
         if not candles:
+            print("DEBUG: seeding candles")
             base = 450.0
             last = base
             for _ in range(50):
                 k = next_candle(last); last = k["close"]; candles.append(k)
+        print("DEBUG: compiling pine")
         comp = compile_pine(code)
+        print(f"DEBUG: compiled {comp.name}")
         window = candles[-400:] if len(candles) >= 2 else candles
+        print(f"DEBUG: running on {len(window)} candles")
         res = comp.run(window)
+        print(f"DEBUG: got result {res.name}")
         return JSONResponse({
             "compiled": {"name": comp.name, "params": comp.params, "series": comp.series, "rules": comp.rules},
             "result": {
@@ -202,6 +209,9 @@ async def pine_preview(payload: Dict[str, Any]):
             }
         })
     except Exception as e:
+        print(f"DEBUG: Exception in pine_preview: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
