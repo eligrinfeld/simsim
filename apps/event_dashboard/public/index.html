@@ -61,6 +61,8 @@
   <div class="panel" id="status">
     <div class="kv">WS: <b id="wsState">connecting…</b></div>
     <div class="kv">Last event: <b id="lastEvt">—</b></div>
+    <div class="kv">RSI: <b id="rsiVal">—</b></div>
+    <div class="kv">MACD: <b id="macdVal">—</b></div>
   </div>
 
   <div class="tracks">
@@ -90,19 +92,22 @@
       grid: { vertLines: { color: '#1a1f25' }, horzLines: { color: '#1a1f25' } },
       timeScale: { timeVisible: true, secondsVisible: true, borderColor: '#20252b' },
       rightPriceScale: { borderColor: '#20252b' },
+      leftPriceScale: { visible: true, borderColor: '#20252b' },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     });
     const candleSeries = chart.addCandlestickSeries({
       upColor: '#22c55e', downColor: '#ef4444', borderDownColor: '#ef4444', borderUpColor: '#22c55e', wickDownColor: '#ef4444', wickUpColor: '#22c55e'
     });
     const volSeries = chart.addHistogramSeries({ color: 'rgba(100, 181, 246, 0.4)', priceFormat: { type: 'volume' }, priceScaleId: 'left' });
-    const rsiSeries = chart.addLineSeries({ color: '#f97316', lineWidth: 1, priceScaleId: 'overlay' });
+    // Use secondary overlay scale for indicators to avoid distorting price
+    const overlayScale = 'overlay';
+    const rsiSeries = chart.addLineSeries({ color: '#f97316', lineWidth: 1, priceScaleId: overlayScale });
     // RSI guide bands
-    const rsi30Series = chart.addLineSeries({ color: 'rgba(255,255,255,0.15)', lineWidth: 1, priceScaleId: 'overlay' });
-    const rsi70Series = chart.addLineSeries({ color: 'rgba(255,255,255,0.15)', lineWidth: 1, priceScaleId: 'overlay' });
-    const macdSeries = chart.addLineSeries({ color: '#a78bfa', lineWidth: 1, priceScaleId: 'overlay' });
-    const macdSignalSeries = chart.addLineSeries({ color: '#60a5fa', lineWidth: 1, priceScaleId: 'overlay' });
-    const macdHistSeries = chart.addHistogramSeries({ priceScaleId: 'overlay' });
+    const rsi30Series = chart.addLineSeries({ color: 'rgba(255,255,255,0.15)', lineWidth: 1, priceScaleId: overlayScale });
+    const rsi70Series = chart.addLineSeries({ color: 'rgba(255,255,255,0.15)', lineWidth: 1, priceScaleId: overlayScale });
+    const macdSeries = chart.addLineSeries({ color: '#a78bfa', lineWidth: 1, priceScaleId: overlayScale });
+    const macdSignalSeries = chart.addLineSeries({ color: '#60a5fa', lineWidth: 1, priceScaleId: overlayScale });
+    const macdHistSeries = chart.addHistogramSeries({ priceScaleId: overlayScale });
 
     const markers = [];
 
@@ -147,13 +152,20 @@
       const times = rows.map(k=>k.time);
       // indicators
       volSeries.setData(rows.map(k=>({ time:k.time, value:k.volume })));
-      const rsiVals = rsi(closes,14).map((v,i)=> v==null?null:{ time: times[i], value: v });
-      rsiSeries.setData(rsiVals.filter(Boolean));
-      const m = macd(closes);
-      macdSeries.setData(m.macdLine.map((v,i)=>({ time: times[i], value: v||0 })));
+      const rsiVals = rsi(closes,14);
+      const rsiData = rsiVals.map((v,i)=> v==null?null:{ time: times[i], value: v }).filter(Boolean);
+      rsiSeries.setData(rsiData);
       // RSI guide bands
       rsi30Series.setData(times.map(t=>({ time:t, value:30 })));
       rsi70Series.setData(times.map(t=>({ time:t, value:70 })));
+      const m = macd(closes);
+      const macdData = m.macdLine.map((v,i)=>({ time: times[i], value: v||0 }));
+      const macdSigData = m.signalLine.map((v,i)=>({ time: times[i], value: v||0 }));
+      const macdHistData = m.hist.map((v,i)=>({ time: times[i], value: Math.abs(v||0), color: (v||0) >= 0 ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)' }));
+      macdSeries.setData(macdData);
+      macdSignalSeries.setData(macdSigData);
+      macdHistSeries.setData(macdHistData);
+      window._indicCache = { closes, times, rsiVals, rsiData, macd: m, macdData, macdSigData, macdHistData };
       macdSignalSeries.setData(m.signalLine.map((v,i)=>({ time: times[i], value: v||0 })));
       macdHistSeries.setData(m.hist.map((v,i)=>({ time: times[i], value: Math.abs(v||0), color: (v||0) >= 0 ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)' })));
     });
@@ -185,6 +197,54 @@
         rememberTs(evt.ts||0);
       }
     }
+
+    function handleEvent(evt){
+      lastEvt.textContent = `${evt.type} @ ${new Date(evt.ts * 1000).toLocaleTimeString()}`;
+      rememberTs(evt.ts||0);
+      if (evt.type === 'Bar') {
+        const k = evt.data;
+        candleSeries.update({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close });
+        // Incremental indicator updates
+        if (window._indicCache){
+          const c = window._indicCache;
+          c.closes.push(k.close); c.times.push(k.time);
+          const closes = c.closes; const times = c.times;
+          const rsiVals = rsi(closes,14);
+          const last = rsiVals[rsiVals.length-1];
+          if (last != null) rsiSeries.update({ time: times[times.length-1], value: last });
+          rsi30Series.update({ time: times[times.length-1], value: 30 });
+          rsi70Series.update({ time: times[times.length-1], value: 70 });
+          const m = macd(closes);
+          const t = times[times.length-1];
+          macdSeries.update({ time: t, value: m.macdLine[m.macdLine.length-1]||0 });
+          macdSignalSeries.update({ time: t, value: m.signalLine[m.signalLine.length-1]||0 });
+          const hv = m.hist[m.hist.length-1]||0;
+          macdHistSeries.update({ time: t, value: Math.abs(hv), color: hv >= 0 ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)' });
+          c.rsiVals = rsiVals; c.macd = m;
+          // Legend labels
+          document.getElementById('rsiVal').textContent = (last!=null? last.toFixed(1): '—');
+          document.getElementById('macdVal').textContent = `${(m.macdLine.at(-1)||0).toFixed(2)} / ${(m.signalLine.at(-1)||0).toFixed(2)}`;
+        }
+        return;
+      }
+      if (evt.type === 'Breakout') {
+        addMarker(evt.ts, 'aboveBar', '#22c55e', 'arrowUp', 'Breakout', evt.data?.price);
+        const node = pill('#22c55e', 'Breakout', evt, '↗'); node.title = 'Technical breakout'; signalsLane.appendChild(node); trimLane(signalsLane);
+      }
+      if (evt.type === 'NewsBurst') {
+        addMarker(evt.ts, 'aboveBar', '#22c55e', 'circle', 'NewsBurst (≥3 pos in 2m)', 'news'+evt.ts);
+        const node = pill('#22c55e', 'NewsBurst', evt, '●'); node.title = 'News burst'; newsLane.appendChild(node); trimLane(newsLane);
+      }
+      if (evt.type === 'MacroShock') {
+        addMarker(evt.ts, 'belowBar', '#eab308', 'square', `MacroShock (CPI ${evt.data.surprise.toFixed(2)})`, 'macro'+evt.ts);
+        const node = pill('#eab308', `MacroShock ${evt.data.surprise.toFixed(2)}`, evt, '■'); node.title = 'Macro surprise'; macroLane.appendChild(node); trimLane(macroLane);
+      }
+      if (evt.type === 'TradeEntryIntent') {
+        addMarker(evt.ts, 'belowBar', '#ef4444', 'arrowUp', 'TradeEntryIntent (macro→breakout)', 'entry'+evt.ts);
+        const node = pill('#ef4444', 'TradeEntryIntent', evt, '★'); node.title = 'Sequence match'; signalsLane.appendChild(node); trimLane(signalsLane);
+      }
+    }
+
 
     const filters = { macro: true, news: true, signals: true };
     document.querySelectorAll('.chip[data-filter]').forEach(ch => {

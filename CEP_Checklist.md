@@ -19,7 +19,7 @@
 
 ## **Live Dashboard**
 - [x] Implement primary chart (TradingView lightweight-charts candlestick)
-- [ ] Add subpane toggles: RSI, MACD, Volume
+- [x] Add indicator overlays (RSI, MACD, Volume) with toggle chips and persistence
 - [x] Implement event tracks:
   - [x] Macro ribbon (CPI/NFP/Rate decisions) — basic pill lane for MacroShock
   - [x] News clusters (bubble visualization) — basic pill lane for NewsBurst
