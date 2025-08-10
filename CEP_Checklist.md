@@ -61,8 +61,8 @@
 - [x] Define CEP output types (Breakout, NewsBurst, MacroShock, TradeEntryIntent)
 - [ ] Implement REST endpoints:
   - [x] GET /candles
-  - [ ] GET /events
-  - [ ] POST /telemetry
+  - [x] GET /events
+  - [x] POST /telemetry
 - [x] Implement WebSocket /ws push
 
 ## **Component Inventory**
@@ -78,7 +78,7 @@
   - [x] NewsAdapter
   - [x] MacroAdapter
   - [x] CEPCore
-  - [ ] Broadcaster (WS + backfill)
+  - [x] Broadcaster (WS + backfill)
   - [ ] Storage layer
 
 ## **Implementation Plan**
@@ -86,7 +86,7 @@
 - [x] Backend: FastAPI app (/candles, /ws, CEP core)
 - [x] Simulate bars/news/macro data
 - [x] Emit sample CEP events
-- [ ] Frontend: chart, markers, event tracks, right drawer stub
+- [x] Frontend: chart, markers, event tracks, right drawer stub
 - [x] Tests: /candles, WS handshake, CEP triggers
 
 ### **Milestone M1 – Live Adapters + Resilience (3–5 days)**
