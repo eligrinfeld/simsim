@@ -466,17 +466,17 @@
       st.textContent = 'Running...';
       try{
         const res = await fetch('/strategy/pine/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({code})});
-
-        if (!res.ok){ st.textContent = 'Error: '+res.status; return; }
-        const js = await res.json();
-        st.textContent = `${js.result.name} | Sharpe ${js.result.sharpe.toFixed(2)} | Return ${(js.result.total_return*100).toFixed(1)}%`;
-        // overlay trades
-        js.result.trades.forEach(t => {
-          addMarker(t.ts, t.side==='buy'?'belowBar':'aboveBar', t.side==='buy'?'#22c55e':'#ef4444', t.side==='buy'?'arrowUp':'arrowDown', (t.side==='buy'?'Buy':'Sell')+` @ ${t.price.toFixed(2)}`, `${t.side}${t.ts}`);
+        const text = await res.text();
+        const js = (() => { try { return JSON.parse(text); } catch { return {error:text}; } })();
+        if (!res.ok){ st.textContent = 'Error: '+(js.error||res.status); return; }
+        const r = js.result || {};
+        const fmt = (x,p=2)=>Number.isFinite(Number(x))?Number(x).toFixed(p):'-';
+        st.textContent = `${r.name||'Strategy'} | Sharpe ${fmt(r.sharpe)} | Return ${Number.isFinite(Number(r.total_return))?(Number(r.total_return)*100).toFixed(1):'-'}%`;
+        (r.trades||[]).forEach(t => {
+          addMarker(t.ts, t.side==='buy'?'belowBar':'aboveBar', t.side==='buy'?'#22c55e':'#ef4444', t.side==='buy'?'arrowUp':'arrowDown', (t.side==='buy'?'Buy':'Sell')+` @ ${t.price?.toFixed? t.price.toFixed(2): t.price}`, `${t.side}${t.ts}`);
         });
-        // open drawer with a short explanation
-        drawerTitle.textContent = js.result.name;
-        drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${js.result.sharpe.toFixed(2)}</span></div><div class='kv'><span>Total Return</span><span>${(js.result.total_return*100).toFixed(1)}%</span></div><div class='kv'><span>Max DD</span><span>${(js.result.max_drawdown*100).toFixed(1)}%</span></div>`;
+        drawerTitle.textContent = r.name || 'Strategy';
+        drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${fmt(r.sharpe)}</span></div><div class='kv'><span>Total Return</span><span>${Number.isFinite(Number(r.total_return))?(Number(r.total_return)*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Max DD</span><span>${Number.isFinite(Number(r.max_drawdown))?(Number(r.max_drawdown)*100).toFixed(1):'-'}%</span></div>`;
         drawer.classList.add('open');
       }catch(e){ st.textContent = 'Error'; }
     };
