@@ -495,27 +495,40 @@
     }
 
     replayToggle.onclick = async () => {
-      if (replayControls.style.display === 'none') {
+      if (replayControls.style.display === 'none' || replayControls.style.display === '') {
         // Enter replay mode
         try {
+          console.log('Entering replay mode...');
           const now = Math.floor(Date.now() / 1000);
           const oneHourAgo = now - 3600;
+          console.log(`Fetching events from ${oneHourAgo} to ${now}`);
+
           const res = await fetch(`/events/replay?since=${oneHourAgo}&until=${now}`);
+          console.log('Response status:', res.status);
+
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          }
+
           const data = await res.json();
+          console.log('Received data:', data);
 
           replayEvents = data.events || [];
           replayIndex = 0;
 
           // Clear existing replay markers
-          chart.removeAllMarkers();
+          if (typeof chart !== 'undefined' && chart.removeAllMarkers) {
+            chart.removeAllMarkers();
+          }
 
           replayControls.style.display = 'flex';
           replayToggle.textContent = 'Exit Replay';
           updateReplayUI();
 
-          console.log(`Loaded ${replayEvents.length} events for replay`);
+          console.log(`✅ Loaded ${replayEvents.length} events for replay`);
         } catch (err) {
-          alert('Failed to load replay data');
+          console.error('Replay error:', err);
+          alert(`Failed to load replay data: ${err.message}`);
         }
       } else {
         // Exit replay mode
