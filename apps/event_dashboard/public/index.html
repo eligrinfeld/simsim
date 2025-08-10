@@ -409,6 +409,16 @@
       function schedule(){
         attempts += 1;
         const backoff = Math.min(5000, 500 * Math.pow(2, Math.min(attempts, 4)));
+    // Safety: if showModal not supported, toggle open attribute
+    if (!('showModal' in HTMLDialogElement.prototype)){
+      document.getElementById('importPine').onclick = () => {
+        pineDlg.setAttribute('open','');
+      };
+    }
+    document.querySelector('#pineDlg .btn[value="close"]').onclick = () => {
+      pineDlg.close ? pineDlg.close() : pineDlg.removeAttribute('open');
+    };
+
         setTimeout(open, backoff);
       }
       open();
