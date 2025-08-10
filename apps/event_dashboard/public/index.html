@@ -497,6 +497,13 @@
         // Enter replay mode
         try {
           console.log('Entering replay mode...');
+
+          // Disconnect live WebSocket
+          if (wsConnection && wsConnection.close) {
+            wsConnection.close();
+            wsState.textContent = 'replay mode';
+          }
+
           const now = Math.floor(Date.now() / 1000);
           const oneHourAgo = now - 3600;
           console.log(`Fetching events from ${oneHourAgo} to ${now}`);
@@ -514,9 +521,10 @@
           replayEvents = data.events || [];
           replayIndex = 0;
 
-          // Clear existing replay markers
-          if (typeof chart !== 'undefined' && chart.removeAllMarkers) {
-            chart.removeAllMarkers();
+          // Clear existing markers and stop live updates
+          markers.length = 0; // Clear markers array
+          if (typeof candleSeries !== 'undefined' && candleSeries.setMarkers) {
+            candleSeries.setMarkers([]);
           }
 
           replayControls.style.display = 'flex';
@@ -530,10 +538,21 @@
         }
       } else {
         // Exit replay mode
+        console.log('Exiting replay mode...');
         stopReplay();
         replayControls.style.display = 'none';
         replayToggle.textContent = 'Replay';
-        chart.removeAllMarkers();
+
+        // Clear replay markers
+        markers.length = 0;
+        if (typeof candleSeries !== 'undefined' && candleSeries.setMarkers) {
+          candleSeries.setMarkers([]);
+        }
+
+        // Reconnect live WebSocket
+        if (wsConnection && wsConnection.reconnect) {
+          wsConnection.reconnect();
+        }
       }
     };
 
@@ -558,7 +577,7 @@
       replayIndex = Math.max(0, Math.min(replayIndex, replayEvents.length - 1));
 
       // Clear and replay up to this point
-      chart.removeAllMarkers();
+      markers.length = 0;
       for (let i = 0; i <= replayIndex; i++) {
         const evt = replayEvents[i];
         if (evt.type !== 'Bar') {
@@ -763,6 +782,8 @@
       });
     });
 
+    let wsConnection = null;
+
     function connectWS(){
       let attempts = 0; let ws;
       function open(){
@@ -775,10 +796,13 @@
       function schedule(){
         attempts += 1;
         const backoff = Math.min(5000, 500 * Math.pow(2, Math.min(attempts, 4)));
-
         setTimeout(open, backoff);
       }
+      function fetchBackfill(){
+        fetch(`/events?since=${lastSeenTs}`).then(r=>r.json()).then(replay).catch(e=>{});
+      }
       open();
+      return { close: () => ws?.close(), reconnect: open, ws: () => ws };
     }
 
     // Pine dialog handlers (guarded for browsers without <dialog>)
@@ -845,7 +869,7 @@
       }catch(e){ st.textContent = 'Error'; }
     };
 
-    connectWS();
+    wsConnection = connectWS();
 
     new ResizeObserver(entries => {
       if (!entries.length) return;
