@@ -1,5 +1,5 @@
 from __future__ import annotations
-import asyncio, random, time, uuid, os, json
+import asyncio, random, time, uuid, os, json, math
 from dataclasses import dataclass, field, asdict
 from typing import Any, Callable, Deque, Dict, List, Optional
 from collections import defaultdict, deque
@@ -173,6 +173,31 @@ async def best_strategy(symbol: str = SYMBOL):
         "trades": best.trades,
         "explanation": expl,
     })
+
+from .pine_adapter import compile_pine
+
+@app.post("/strategy/pine/preview")
+async def pine_preview(payload: Dict[str, Any]):
+    try:
+        code = payload.get("code", "") if isinstance(payload, dict) else ""
+        if not code:
+            return JSONResponse(status_code=400, content={"error": "missing code"})
+        comp = compile_pine(code)
+        window = candles[-400:] if len(candles) >= 2 else candles
+        res = comp.run(window)
+        return JSONResponse({
+            "compiled": {"name": comp.name, "params": comp.params, "series": comp.series, "rules": comp.rules},
+            "result": {
+                "name": res.name,
+                "total_return": float(res.total_return or 0.0),
+                "sharpe": float(res.sharpe or 0.0),
+                "max_drawdown": float(res.max_drawdown or 0.0),
+                "trades": res.trades,
+            }
+        })
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 
 @app.websocket("/ws")
 async def ws(ws: WebSocket):
