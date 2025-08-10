@@ -109,13 +109,45 @@
     <div style="display:flex;flex-direction:column;gap:8px;max-width:980px;margin:0 auto">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <strong>Import Pine (MVP subset)</strong>
-        <button type="button" class="btn" id="pineRun">Preview</button>
+        <div>
+          <button type="button" class="btn" id="pineLoad" style="margin-right:8px;">Load</button>
+          <button type="button" class="btn" id="pineSave" style="margin-right:8px;">Save</button>
+          <button type="button" class="btn" id="pineRun">Preview</button>
+        </div>
       </div>
       <small>Supported: input.int/float, ta.sma/ema/rsi, ta.crossover/crossunder, strategy.entry/close, bbands, macd, stoch, supertrend, thresholds</small>
       <textarea id="pineCodeArea" style="width:100%;height:180px;background:#0b0e11;color:#e5e7eb;border:1px solid #243040;border-radius:6px;padding:8px" placeholder="Paste Pine strategy..."></textarea>
       <div id="pineResult" style="font-size:12px;color:#9aa4b2"></div>
     </div>
   </section>
+
+  <!-- Pine Save Dialog -->
+  <dialog id="pineSaveDlg" style="background:#0e1318;color:#e5e7eb;border:1px solid #2b3645;border-radius:8px;padding:20px;width:400px;">
+    <h3 style="margin-top:0;">Save Pine Strategy</h3>
+    <form id="pineSaveForm">
+      <div style="margin-bottom:12px;">
+        <label style="display:block;margin-bottom:4px;font-size:12px;color:#9aa4b2;">Strategy Name</label>
+        <input type="text" id="pineSaveName" required style="width:100%;padding:8px;background:#1a1f25;color:#e5e7eb;border:1px solid #2b3645;border-radius:4px;" placeholder="My Strategy">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block;margin-bottom:4px;font-size:12px;color:#9aa4b2;">Description (optional)</label>
+        <textarea id="pineSaveDesc" rows="3" style="width:100%;padding:8px;background:#1a1f25;color:#e5e7eb;border:1px solid #2b3645;border-radius:4px;" placeholder="Brief description of the strategy..."></textarea>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" class="btn" id="pineSaveCancel">Cancel</button>
+        <button type="submit" class="btn" style="background:#2563eb;border-color:#3b82f6;">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Pine Load Dialog -->
+  <dialog id="pineLoadDlg" style="background:#0e1318;color:#e5e7eb;border:1px solid #2b3645;border-radius:8px;padding:20px;width:500px;">
+    <h3 style="margin-top:0;">Load Pine Strategy</h3>
+    <div id="pineLoadList" style="max-height:300px;overflow-y:auto;margin-bottom:12px;"></div>
+    <div style="display:flex;justify-content:flex-end;">
+      <button type="button" class="btn" id="pineLoadCancel">Cancel</button>
+    </div>
+  </dialog>
 
   <div class="drawer" id="drawer">
     <div class="hd">
@@ -292,6 +324,91 @@
         </div>
       `;
     }
+
+    // Pine Save/Load functionality
+    const pineSaveDlg = document.getElementById('pineSaveDlg');
+    const pineLoadDlg = document.getElementById('pineLoadDlg');
+    const pineSaveForm = document.getElementById('pineSaveForm');
+    const pineCodeArea = document.getElementById('pineCodeArea');
+
+    document.getElementById('pineSave').onclick = () => {
+      const code = pineCodeArea.value.trim();
+      if (!code) {
+        alert('Please enter a Pine strategy first');
+        return;
+      }
+      // Extract strategy name from code if available
+      const nameMatch = code.match(/strategy\s*\(\s*title\s*=\s*["']([^"']+)["']/);
+      if (nameMatch) {
+        document.getElementById('pineSaveName').value = nameMatch[1];
+      }
+      pineSaveDlg.showModal();
+    };
+
+    document.getElementById('pineSaveCancel').onclick = () => pineSaveDlg.close();
+
+    pineSaveForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('pineSaveName').value;
+      const description = document.getElementById('pineSaveDesc').value;
+      const code = pineCodeArea.value;
+
+      try {
+        const res = await fetch('/strategy/pine/save', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            name,
+            code,
+            description,
+            parameters: {}, // TODO: extract from code
+            user_id: 'anonymous' // TODO: get from auth
+          })
+        });
+
+        const result = await res.json();
+        if (res.ok) {
+          alert(`Strategy "${name}" saved successfully!`);
+          pineSaveDlg.close();
+        } else {
+          alert(`Error: ${result.error}`);
+        }
+      } catch (err) {
+        alert('Failed to save strategy');
+      }
+    };
+
+    document.getElementById('pineLoad').onclick = async () => {
+      try {
+        const res = await fetch('/strategy/pine/list?user_id=anonymous');
+        const data = await res.json();
+
+        const listEl = document.getElementById('pineLoadList');
+        if (data.strategies && data.strategies.length > 0) {
+          listEl.innerHTML = data.strategies.map(s => `
+            <div style="border:1px solid #2b3645;border-radius:4px;padding:12px;margin-bottom:8px;cursor:pointer;" onclick="loadStrategy('${s.id}', '${s.name}', \`${s.code.replace(/`/g, '\\`')}\`)">
+              <div style="font-weight:bold;margin-bottom:4px;">${s.name}</div>
+              <div style="font-size:11px;color:#9aa4b2;">${s.description || 'No description'}</div>
+              <div style="font-size:10px;color:#6b7280;margin-top:4px;">Created: ${new Date(s.created_at).toLocaleDateString()}</div>
+            </div>
+          `).join('');
+        } else {
+          listEl.innerHTML = '<div style="text-align:center;color:#9aa4b2;padding:20px;">No saved strategies found</div>';
+        }
+
+        pineLoadDlg.showModal();
+      } catch (err) {
+        alert('Failed to load strategies');
+      }
+    };
+
+    document.getElementById('pineLoadCancel').onclick = () => pineLoadDlg.close();
+
+    window.loadStrategy = (id, name, code) => {
+      pineCodeArea.value = code;
+      pineLoadDlg.close();
+      pineResult.textContent = `Loaded: ${name}`;
+    };
 
     // Reconnect/backfill state
     let lastSeenTs = Number(sessionStorage.getItem('evt:lastTs') || 0);
@@ -537,6 +654,9 @@
         explainToggle.textContent = 'Explain';
         explainToggle.classList.remove('active');
         drawer.classList.add('open');
+
+        // Auto-save results to cloud (if strategy was previously saved)
+        // This would be enhanced with proper strategy tracking
       }catch(err){ pineResult.textContent = 'Error'; }
     });
 

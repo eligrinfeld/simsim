@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import strategies as st
+from .supabase import supabase_client
 
 # ---------- Event model ----------
 @dataclass
@@ -201,6 +202,84 @@ async def pine_preview(payload: Dict[str, Any]):
                 "trades": res.trades,
             }
         })
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post("/strategy/pine/save")
+async def save_pine_strategy(payload: Dict[str, Any]):
+    """Save a Pine strategy to Supabase."""
+    try:
+        name = payload.get("name", "")
+        code = payload.get("code", "")
+        description = payload.get("description", "")
+        parameters = payload.get("parameters", {})
+        user_id = payload.get("user_id", "anonymous")  # In real app, get from auth
+
+        if not name or not code:
+            return JSONResponse(status_code=400, content={"error": "name and code are required"})
+
+        strategy_id = await supabase_client.save_pine_strategy(
+            user_id=user_id,
+            name=name,
+            code=code,
+            parameters=parameters,
+            description=description
+        )
+
+        return JSONResponse({
+            "success": True,
+            "strategy_id": strategy_id,
+            "message": f"Strategy '{name}' saved successfully"
+        })
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/strategy/pine/list")
+async def list_pine_strategies(user_id: str = "anonymous"):
+    """List all Pine strategies for a user."""
+    try:
+        strategies = await supabase_client.get_user_strategies(user_id)
+        return JSONResponse({
+            "strategies": strategies,
+            "count": len(strategies)
+        })
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post("/strategy/pine/result/save")
+async def save_pine_result(payload: Dict[str, Any]):
+    """Save Pine backtest results to Supabase."""
+    try:
+        strategy_id = payload.get("strategy_id", "")
+        symbol = payload.get("symbol", "SPY")
+        timeframe = payload.get("timeframe", "1m")
+        result = payload.get("result", {})
+
+        if not strategy_id:
+            return JSONResponse(status_code=400, content={"error": "strategy_id is required"})
+
+        result_id = await supabase_client.save_pine_result(
+            strategy_id=strategy_id,
+            symbol=symbol,
+            timeframe=timeframe,
+            sharpe_ratio=float(result.get("sharpe", 0)),
+            total_return=float(result.get("total_return", 0)),
+            max_drawdown=float(result.get("max_drawdown", 0)),
+            trade_count=len(result.get("trades", [])),
+            trades=result.get("trades", [])
+        )
+
+        return JSONResponse({
+            "success": True,
+            "result_id": result_id,
+            "message": "Results saved successfully"
+        })
+
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
