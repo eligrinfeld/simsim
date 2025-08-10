@@ -26,10 +26,10 @@
   - [x] Signals lane (CEP outputs: Breakout, NewsBurst, MacroShock, TradeEntryIntent) — pill lane and chart markers
 - [x] Build right drawer (on marker click) with:
   - [x] Summary (title placeholder) — minimal JSON details shown
-  - [ ] “Why it fired” explanation
-  - [ ] Evidence section
+  - [x] “Why it fired” explanation
+  - [x] Evidence section (friendly fields per event)
   - [ ] Actions: Explain (AI), Add note, Create alert
-- [ ] Add legend/footer with markers and filter chips
+- [x] Add filter chips to toggle lanes
 
 ## **Ticker Deep-Dive**
 - [ ] Chart with RSI/MACD/Volume subpanes

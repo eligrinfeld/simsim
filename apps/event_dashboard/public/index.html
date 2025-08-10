@@ -121,8 +121,10 @@
         const k = ch.getAttribute('data-filter');
         filters[k] = !filters[k];
         ch.classList.toggle('active', filters[k]);
-        // Show/hide lanes
         document.getElementById(k + 'Track').style.display = filters[k] ? 'flex' : 'none';
+        saveFilters();
+        // Telemetry
+        fetch('/telemetry', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({cat:'filters', action:k, enabled:filters[k]})}).catch(()=>{});
       });
     });
 
@@ -157,6 +159,7 @@
         drawerTitle.textContent = label;
         drawerBody.innerHTML = drawerContent(evt);
         drawer.classList.add('open');
+        fetch('/telemetry', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({cat:'pill', action:evt.type, ts:evt.ts})}).catch(()=>{});
       };
       return el;
     }
@@ -178,21 +181,33 @@
         const k = evt.data;
         candleSeries.update({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close });
       }
+      function saveFilters(){ try{ localStorage.setItem('evt:filters', JSON.stringify(filters)); }catch(e){} }
+      function loadFilters(){ try{ return JSON.parse(localStorage.getItem('evt:filters')) || filters; }catch(e){ return filters; } }
+
+      // Init filters from storage
+      const stored = loadFilters();
+      Object.keys(filters).forEach(k => {
+        filters[k] = !!stored[k];
+        const chip = document.querySelector(`.chip[data-filter="${k}"]`);
+        if (chip) chip.classList.toggle('active', filters[k]);
+        document.getElementById(k + 'Track').style.display = filters[k] ? 'flex' : 'none';
+      });
+
       if (evt.type === 'Breakout') {
         addMarker(evt.ts, 'aboveBar', '#22c55e', 'arrowUp', 'Breakout', evt.data?.price);
-        const node = pill('#22c55e', 'Breakout', evt); signalsLane.appendChild(node); trimLane(signalsLane);
+        const node = pill('#22c55e', 'Breakout', evt); node.title = 'Technical breakout'; signalsLane.appendChild(node); trimLane(signalsLane);
       }
       if (evt.type === 'NewsBurst') {
         addMarker(evt.ts, 'aboveBar', '#22c55e', 'circle', 'NewsBurst (≥3 pos in 2m)', 'news'+evt.ts);
-        const node = pill('#22c55e', 'NewsBurst', evt); newsLane.appendChild(node); trimLane(newsLane);
+        const node = pill('#22c55e', 'NewsBurst', evt); node.title = 'News burst'; newsLane.appendChild(node); trimLane(newsLane);
       }
       if (evt.type === 'MacroShock') {
         addMarker(evt.ts, 'belowBar', '#eab308', 'square', `MacroShock (CPI ${evt.data.surprise.toFixed(2)})`, 'macro'+evt.ts);
-        const node = pill('#eab308', `MacroShock ${evt.data.surprise.toFixed(2)}`, evt); macroLane.appendChild(node); trimLane(macroLane);
+        const node = pill('#eab308', `MacroShock ${evt.data.surprise.toFixed(2)}`, evt); node.title = 'Macro surprise'; macroLane.appendChild(node); trimLane(macroLane);
       }
       if (evt.type === 'TradeEntryIntent') {
         addMarker(evt.ts, 'belowBar', '#ef4444', 'arrowUp', 'TradeEntryIntent (macro→breakout)', 'entry'+evt.ts);
-        const node = pill('#ef4444', 'TradeEntryIntent', evt); signalsLane.appendChild(node); trimLane(signalsLane);
+        const node = pill('#ef4444', 'TradeEntryIntent', evt); node.title = 'Sequence match'; signalsLane.appendChild(node); trimLane(signalsLane);
       }
       if (evt.type === 'NewsItem') { console.log('News:', evt.data.headline, 'sent:', evt.data.sentiment); }
     };

@@ -1,8 +1,9 @@
 from __future__ import annotations
-import asyncio, random, time, uuid
+import asyncio, random, time, uuid, os, json
 from dataclasses import dataclass, field, asdict
 from typing import Any, Callable, Deque, Dict, List, Optional
 from collections import defaultdict, deque
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -223,6 +224,18 @@ def install_rules():
     )
 
 @app.on_event("startup")
+
+@app.post("/telemetry")
+async def telemetry(events: Dict[str, Any]):
+    try:
+        os.makedirs(os.path.join("data", "telemetry"), exist_ok=True)
+        fn = os.path.join("data", "telemetry", datetime.now(timezone.utc).strftime("%Y%m%d") + ".log")
+        with open(fn, "a") as f:
+            f.write(json.dumps({"ts": datetime.now(timezone.utc).isoformat(), "events": events}) + "\n")
+        return JSONResponse(status_code=204, content=None)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 async def on_startup():
     install_rules()
     asyncio.create_task(price_loop())
