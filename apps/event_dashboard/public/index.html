@@ -795,23 +795,50 @@
 
     function connectWS(){
       let attempts = 0; let ws;
+      let isReplayMode = false;
+
       function open(){
+        if (isReplayMode) return; // Don't reconnect in replay mode
         ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
         ws.onopen = () => { wsState.textContent = 'connected'; attempts = 0; fetchBackfill(); };
-        ws.onclose = () => { wsState.textContent = 'disconnected'; schedule(); };
+        ws.onclose = () => {
+          if (!isReplayMode) {
+            wsState.textContent = 'disconnected';
+            schedule();
+          }
+        };
         ws.onerror = () => { wsState.textContent = 'error'; ws.close(); };
-        ws.onmessage = (m) => { try{ handleEvent(JSON.parse(m.data)); }catch(e){} };
+        ws.onmessage = (m) => {
+          if (!isReplayMode) {
+            try{ handleEvent(JSON.parse(m.data)); }catch(e){}
+          }
+        };
       }
       function schedule(){
+        if (isReplayMode) return;
         attempts += 1;
         const backoff = Math.min(5000, 500 * Math.pow(2, Math.min(attempts, 4)));
         setTimeout(open, backoff);
       }
       function fetchBackfill(){
-        fetch(`/events?since=${lastSeenTs}`).then(r=>r.json()).then(replay).catch(e=>{});
+        if (!isReplayMode) {
+          fetch(`/events?since=${lastSeenTs}`).then(r=>r.json()).then(replay).catch(e=>{});
+        }
       }
       open();
-      return { close: () => ws?.close(), reconnect: open, ws: () => ws };
+      return {
+        close: () => {
+          isReplayMode = true;
+          if (ws) {
+            ws.close();
+            wsState.textContent = 'replay mode';
+          }
+        },
+        reconnect: () => {
+          isReplayMode = false;
+          open();
+        }
+      };
     }
 
     // Pine dialog handlers (guarded for browsers without <dialog>)
