@@ -6,8 +6,10 @@ from collections import defaultdict, deque
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+
+from . import strategies as st
 
 # ---------- Event model ----------
 @dataclass
@@ -107,7 +109,7 @@ app.mount("/static", StaticFiles(directory="apps/event_dashboard/public"), name=
 @app.get("/")
 async def index():
     # Serve the SPA index
-    return StaticFiles(directory="apps/event_dashboard/public").lookup_path("index.html")[0]
+    return FileResponse("apps/event_dashboard/public/index.html")
 
 
 SYMBOL = "SPY"
@@ -156,6 +158,21 @@ async def get_events(since: Optional[int] = None):
         s = 0
     data = [e for e in list(recent_events) if int(e.get("ts", 0)) > s]
     return JSONResponse(data)
+
+@app.get("/strategy/best")
+async def best_strategy(symbol: str = SYMBOL):
+    # Use the last N candles to evaluate strategies
+    window = candles[-400:]
+    best = st.pick_best(window)
+    expl = st.explain(best)
+    return JSONResponse({
+        "name": best.name,
+        "total_return": best.total_return,
+        "sharpe": best.sharpe,
+        "max_drawdown": best.max_drawdown,
+        "trades": best.trades,
+        "explanation": expl,
+    })
 
 @app.websocket("/ws")
 async def ws(ws: WebSocket):
