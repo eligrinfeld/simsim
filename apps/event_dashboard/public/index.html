@@ -33,7 +33,14 @@
     .drawer .bd { padding:12px 14px; font-size:13px; color:#c6ced8; }
     .drawer .bd h5 { margin:10px 0 6px; font-size:12px; color:#9aa4b2; }
     .drawer .bd .kv { display:flex; justify-content:space-between; }
+    .drawer .bd .explain { margin-top:12px; padding:10px; background:#0a0d11; border:1px solid #1a1f25; border-radius:6px; font-size:12px; line-height:1.4; display:none; }
+    .drawer .bd .explain.show { display:block; }
+    .drawer .bd .explain h6 { margin:0 0 6px; color:#9aa4b2; font-size:11px; text-transform:uppercase; }
+    .drawer .bd .explain p { margin:4px 0; }
+    .drawer .bd .explain .metric { margin:8px 0; }
+    .drawer .bd .explain .assessment { margin-top:10px; padding:6px; background:#1a1f25; border-radius:4px; }
     .btn { background:#1f2937; border:1px solid #2b3645; color:#e5e7eb; padding:4px 8px; border-radius:6px; cursor:pointer; }
+    .btn.active { background:#2563eb; border-color:#3b82f6; }
   </style>
 </head>
 <body>
@@ -111,7 +118,13 @@
   </section>
 
   <div class="drawer" id="drawer">
-    <div class="hd"><strong id="drawerTitle">Event</strong><button class="btn" id="drawerClose">Close</button></div>
+    <div class="hd">
+      <strong id="drawerTitle">Event</strong>
+      <div>
+        <button class="btn" id="explainToggle" style="display:none;">Explain</button>
+        <button class="btn" id="drawerClose">Close</button>
+      </div>
+    </div>
     <div class="bd" id="drawerBody"></div>
   </div>
 
@@ -216,7 +229,69 @@
     const drawerTitle = document.getElementById('drawerTitle');
     const drawerBody = document.getElementById('drawerBody');
     const drawerClose = document.getElementById('drawerClose');
+    const explainToggle = document.getElementById('explainToggle');
     drawerClose.onclick = () => drawer.classList.remove('open');
+
+    // Explain toggle functionality
+    explainToggle.onclick = () => {
+      const explainDiv = drawerBody.querySelector('.explain');
+      if (explainDiv) {
+        explainDiv.classList.toggle('show');
+        explainToggle.classList.toggle('active');
+        explainToggle.textContent = explainDiv.classList.contains('show') ? 'Hide Explain' : 'Explain';
+      }
+    };
+
+    // Generate performance explanation
+    function generateExplanation(result) {
+      const sharpe = Number(result.sharpe) || 0;
+      const totalRet = Number(result.total_return) || 0;
+      const maxDD = Number(result.max_drawdown) || 0;
+      const trades = Array.isArray(result.trades) ? result.trades.length : 0;
+
+      const sharpeAssessment = sharpe > 2 ? 'Excellent' : sharpe > 1 ? 'Good' : sharpe > 0 ? 'Fair' : 'Poor';
+      const returnAssessment = totalRet > 0.05 ? 'Strong gains' : totalRet > 0 ? 'Small gains' : totalRet > -0.02 ? 'Small losses' : 'Significant losses';
+      const ddAssessment = Math.abs(maxDD) < 0.02 ? 'Low risk' : Math.abs(maxDD) < 0.05 ? 'Moderate risk' : 'High risk';
+      const tradesAssessment = trades < 5 ? 'Few trades' : trades < 20 ? 'Moderate activity' : 'Active strategy';
+
+      const overallAssessment = sharpe > 1 && totalRet > 0 ? '✅ Good Strategy' :
+                               sharpe > 0 && totalRet > -0.01 ? '⚠️ Marginal Strategy' : '❌ Poor Strategy';
+
+      return `
+        <div class="explain">
+          <h6>Performance Metrics Explained</h6>
+          <div class="metric">
+            <strong>Sharpe Ratio: ${sharpe.toFixed(2)}</strong>
+            <p><strong>What it is:</strong> Risk-adjusted return (return per unit of risk)</p>
+            <p><strong>Scale:</strong> -3 to +3, with >1.0 good, >2.0 excellent</p>
+            <p><strong>Your result:</strong> ${sharpeAssessment} - ${sharpe > 0 ? 'earning' : 'losing'} ${Math.abs(sharpe).toFixed(2)} units of return per unit of risk</p>
+          </div>
+          <div class="metric">
+            <strong>Total Return: ${(totalRet*100).toFixed(1)}%</strong>
+            <p><strong>What it is:</strong> Overall profit/loss from start to finish</p>
+            <p><strong>Your result:</strong> ${returnAssessment} - ${totalRet >= 0 ? 'profit' : 'loss'} of ${Math.abs(totalRet*100).toFixed(1)}%</p>
+            <p><strong>Translation:</strong> $10,000 → $${(10000 * (1 + totalRet)).toFixed(0)}</p>
+          </div>
+          <div class="metric">
+            <strong>Max Drawdown: ${(maxDD*100).toFixed(1)}%</strong>
+            <p><strong>What it is:</strong> Largest peak-to-trough loss during the run</p>
+            <p><strong>Your result:</strong> ${ddAssessment} - worst losing streak was ${Math.abs(maxDD*100).toFixed(1)}%</p>
+            <p><strong>Translation:</strong> At worst, you were down $${Math.abs(maxDD*100).toFixed(0)} on a $10,000 account</p>
+          </div>
+          <div class="metric">
+            <strong>Trades: ${trades}</strong>
+            <p><strong>What it is:</strong> Total buy/sell transactions</p>
+            <p><strong>Your result:</strong> ${tradesAssessment} - ${trades < 10 ? 'may need more data' : 'good sample size'}</p>
+          </div>
+          <div class="assessment">
+            <strong>${overallAssessment}</strong>
+            <p>${sharpe <= 0 && totalRet < 0 ? 'Strategy is losing money with poor risk management. Try different parameters or strategies.' :
+                 sharpe > 0 && totalRet > 0 ? 'Strategy shows promise. Consider optimizing parameters or adding filters.' :
+                 'Mixed results. Strategy may work in specific market conditions.'}</p>
+          </div>
+        </div>
+      `;
+    }
 
     // Reconnect/backfill state
     let lastSeenTs = Number(sessionStorage.getItem('evt:lastTs') || 0);
@@ -360,6 +435,7 @@
       el.onclick = () => {
         drawerTitle.textContent = label;
         drawerBody.innerHTML = drawerContent(evt);
+        explainToggle.style.display = 'none'; // Hide explain for regular events
         drawer.classList.add('open');
         teleEnqueue({cat:'pill', action:evt.type, ts:evt.ts});
       };
@@ -456,7 +532,10 @@
           addMarker(t.ts, t.side==='buy'?'belowBar':'aboveBar', t.side==='buy'?'#22c55e':'#ef4444', t.side==='buy'?'arrowUp':'arrowDown', (t.side==='buy'?'Buy':'Sell')+` @ ${t.price.toFixed(2)}`, `${t.side}${t.ts}`);
         });
         drawerTitle.textContent = r.name || 'Strategy';
-        drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${fmt(sharpe)}</span></div><div class='kv'><span>Total Return</span><span>${Number.isFinite(totalRet)?(totalRet*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Max DD</span><span>${Number.isFinite(mdd)?(mdd*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Trades</span><span>${Array.isArray(r.trades)? r.trades.length : 0}</span></div>`;
+        drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${fmt(sharpe)}</span></div><div class='kv'><span>Total Return</span><span>${Number.isFinite(totalRet)?(totalRet*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Max DD</span><span>${Number.isFinite(mdd)?(mdd*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Trades</span><span>${Array.isArray(r.trades)? r.trades.length : 0}</span></div>${generateExplanation(r)}`;
+        explainToggle.style.display = 'inline-block';
+        explainToggle.textContent = 'Explain';
+        explainToggle.classList.remove('active');
         drawer.classList.add('open');
       }catch(err){ pineResult.textContent = 'Error'; }
     });
@@ -477,7 +556,10 @@
           addMarker(t.ts, t.side==='buy'?'belowBar':'aboveBar', t.side==='buy'?'#22c55e':'#ef4444', t.side==='buy'?'arrowUp':'arrowDown', (t.side==='buy'?'Buy':'Sell')+` @ ${t.price?.toFixed? t.price.toFixed(2): t.price}`, `${t.side}${t.ts}`);
         });
         drawerTitle.textContent = r.name || 'Strategy';
-        drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${fmt(r.sharpe)}</span></div><div class='kv'><span>Total Return</span><span>${Number.isFinite(Number(r.total_return))?(Number(r.total_return)*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Max DD</span><span>${Number.isFinite(Number(r.max_drawdown))?(Number(r.max_drawdown)*100).toFixed(1):'-'}%</span></div>`;
+        drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${fmt(r.sharpe)}</span></div><div class='kv'><span>Total Return</span><span>${Number.isFinite(Number(r.total_return))?(Number(r.total_return)*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Max DD</span><span>${Number.isFinite(Number(r.max_drawdown))?(Number(r.max_drawdown)*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Trades</span><span>${Array.isArray(r.trades)? r.trades.length : 0}</span></div>${generateExplanation(r)}`;
+        explainToggle.style.display = 'inline-block';
+        explainToggle.textContent = 'Explain';
+        explainToggle.classList.remove('active');
         drawer.classList.add('open');
       }catch(e){ st.textContent = 'Error'; }
     };
