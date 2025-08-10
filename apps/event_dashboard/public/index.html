@@ -78,7 +78,12 @@
     <div class="kv">MACD: <b id="macdVal">—</b></div>
   </div>
 
-  <!-- Replay Controls -->
+  <!-- Replay Toggle (always visible) -->
+  <div style="margin:8px 0;">
+    <button type="button" class="btn" id="replayToggle">Replay</button>
+  </div>
+
+  <!-- Replay Controls (hidden until replay mode) -->
   <div class="replay-controls" id="replayControls" style="display:none;">
     <button type="button" class="btn" id="replayPlay">▶</button>
     <button type="button" class="btn" id="replayStep">⏭</button>
@@ -86,7 +91,6 @@
       <div class="thumb" id="replayThumb"></div>
     </div>
     <div class="replay-time" id="replayTime">00:00 / 00:00</div>
-    <button type="button" class="btn" id="replayToggle">Replay</button>
   </div>
 
   <div class="tracks">
