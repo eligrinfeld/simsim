@@ -17,7 +17,8 @@ except ImportError:
 
 # Environment variables
 SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL", "https://nzlibwnjcjzbfqjsgfwr.supabase.co")
-SUPABASE_KEY = os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im56bGlid25qY2p6YmZxanNnZndyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTcxMjMsImV4cCI6MjA3MDQzMzEyM30.uCX4gEFOFkkVm2mtHcQyznPXnGBcyv2Qkv5VXGLm7lA")
+# Prefer service role for server-side writes; fall back to anon for dev
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE") or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "")
 
 class SupabaseClient:
     """Wrapper for Supabase operations with fallback when not available."""
@@ -136,13 +137,13 @@ class SupabaseClient:
             print(f"❌ Failed to fetch strategy results: {e}")
             return []
     
-    async def save_user_session(self, user_id: str, name: str, symbol: str, 
+    async def save_user_session(self, user_id: str, name: str, symbol: str,
                                timeframe: str, metadata: Dict[str, Any]) -> Optional[str]:
         """Save a user analysis session."""
         if not self.enabled:
             print(f"💾 Would save session '{name}' (local mode)")
             return f"session-{hash(name)}"
-        
+
         try:
             data = {
                 "user_id": user_id,
@@ -152,15 +153,75 @@ class SupabaseClient:
                 "metadata": metadata,
                 "created_at": datetime.utcnow().isoformat()
             }
-            
+
             result = self.client.table("user_sessions").insert(data).execute()
             session_id = result.data[0]["id"] if result.data else None
             print(f"✅ Saved session '{name}' with ID: {session_id}")
             return session_id
-            
+
         except Exception as e:
             print(f"❌ Failed to save session: {e}")
             return None
+
+    async def save_event(self, evt: Dict[str, Any]) -> None:
+        """Save an event (raw or derived) to Supabase events table.
+        Expects dict with fields: type, key, ts, data
+        """
+        if not self.enabled:
+            return
+        try:
+            payload = {
+                "ts": datetime.utcfromtimestamp(int(evt.get("ts", 0))).isoformat() + "Z",
+                "type": evt.get("type"),
+                "key": evt.get("key"),
+                "data": evt.get("data", {}),
+                "source": (evt.get("data", {}) or {}).get("source", "cep"),
+                "derived": evt.get("type") not in ["Bar", "NewsItem", "MacroRelease", "EarningsReport"]
+            }
+            self.client.table("events").insert(payload).execute()
+        except Exception as e:
+            print(f"⚠️ Failed to save event: {e}")
+
+    async def get_events(self, symbol: str = None, since_ts: int = None,
+                        until_ts: int = None, event_types: List[str] = None) -> List[Dict[str, Any]]:
+        """Query events from Supabase for replay functionality."""
+        if not self.enabled:
+            print(f"📋 Would fetch events for {symbol} since {since_ts} (local mode)")
+            return []
+
+        try:
+            query = self.client.table("events").select("*")
+
+            if symbol:
+                query = query.eq("key", symbol)
+            if since_ts:
+                since_iso = datetime.utcfromtimestamp(since_ts).isoformat() + "Z"
+                query = query.gte("ts", since_iso)
+            if until_ts:
+                until_iso = datetime.utcfromtimestamp(until_ts).isoformat() + "Z"
+                query = query.lte("ts", until_iso)
+            if event_types:
+                query = query.in_("type", event_types)
+
+            result = query.order("ts", desc=False).limit(1000).execute()
+            events = result.data or []
+
+            # Convert back to frontend format
+            formatted_events = []
+            for evt in events:
+                formatted_events.append({
+                    "type": evt["type"],
+                    "key": evt["key"],
+                    "ts": int(datetime.fromisoformat(evt["ts"].replace("Z", "+00:00")).timestamp()),
+                    "data": evt["data"] or {}
+                })
+
+            print(f"📋 Found {len(formatted_events)} events for replay")
+            return formatted_events
+
+        except Exception as e:
+            print(f"❌ Failed to fetch events: {e}")
+            return []
 
 # Global instance
 supabase_client = SupabaseClient()

@@ -41,6 +41,11 @@
     .drawer .bd .explain .assessment { margin-top:10px; padding:6px; background:#1a1f25; border-radius:4px; }
     .btn { background:#1f2937; border:1px solid #2b3645; color:#e5e7eb; padding:4px 8px; border-radius:6px; cursor:pointer; }
     .btn.active { background:#2563eb; border-color:#3b82f6; }
+    .replay-controls { display:flex; align-items:center; gap:8px; padding:8px 12px; background:#0e1318; border:1px solid #2b3645; border-radius:6px; margin:8px 0; }
+    .replay-scrubber { flex:1; height:4px; background:#2b3645; border-radius:2px; position:relative; cursor:pointer; }
+    .replay-scrubber .thumb { position:absolute; top:-4px; width:12px; height:12px; background:#3b82f6; border-radius:50%; cursor:grab; }
+    .replay-scrubber .thumb:active { cursor:grabbing; }
+    .replay-time { font-size:11px; color:#9aa4b2; min-width:120px; }
   </style>
 </head>
 <body>
@@ -71,6 +76,17 @@
     <div class="kv">Last event: <b id="lastEvt">—</b></div>
     <div class="kv">RSI: <b id="rsiVal">—</b></div>
     <div class="kv">MACD: <b id="macdVal">—</b></div>
+  </div>
+
+  <!-- Replay Controls -->
+  <div class="replay-controls" id="replayControls" style="display:none;">
+    <button type="button" class="btn" id="replayPlay">▶</button>
+    <button type="button" class="btn" id="replayStep">⏭</button>
+    <div class="replay-scrubber" id="replayScrubber">
+      <div class="thumb" id="replayThumb"></div>
+    </div>
+    <div class="replay-time" id="replayTime">00:00 / 00:00</div>
+    <button type="button" class="btn" id="replayToggle">Replay</button>
   </div>
 
   <div class="tracks">
@@ -408,6 +424,136 @@
       pineCodeArea.value = code;
       pineLoadDlg.close();
       pineResult.textContent = `Loaded: ${name}`;
+    };
+
+    // Replay functionality
+    let replayEvents = [];
+    let replayIndex = 0;
+    let replayPlaying = false;
+    let replayInterval = null;
+
+    const replayControls = document.getElementById('replayControls');
+    const replayPlay = document.getElementById('replayPlay');
+    const replayStep = document.getElementById('replayStep');
+    const replayToggle = document.getElementById('replayToggle');
+    const replayScrubber = document.getElementById('replayScrubber');
+    const replayThumb = document.getElementById('replayThumb');
+    const replayTime = document.getElementById('replayTime');
+
+    function formatTime(ts) {
+      const date = new Date(ts * 1000);
+      return date.toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute: '2-digit'});
+    }
+
+    function updateReplayUI() {
+      if (replayEvents.length === 0) return;
+
+      const progress = replayEvents.length > 1 ? replayIndex / (replayEvents.length - 1) : 0;
+      replayThumb.style.left = `${progress * 100}%`;
+
+      const currentTime = replayEvents[replayIndex]?.ts || 0;
+      const endTime = replayEvents[replayEvents.length - 1]?.ts || 0;
+      replayTime.textContent = `${formatTime(currentTime)} / ${formatTime(endTime)}`;
+    }
+
+    function playNextEvent() {
+      if (replayIndex >= replayEvents.length) {
+        stopReplay();
+        return;
+      }
+
+      const evt = replayEvents[replayIndex];
+      // Add marker to chart
+      if (evt.type !== 'Bar') {
+        const color = evt.type === 'TradeEntryIntent' ? '#ef4444' :
+                     evt.type === 'MacroShock' ? '#f59e0b' : '#22c55e';
+        addMarker(evt.ts, 'belowBar', color, 'circle', `${evt.type}: ${evt.key}`, `replay-${evt.ts}`);
+      }
+
+      replayIndex++;
+      updateReplayUI();
+    }
+
+    function startReplay() {
+      if (replayEvents.length === 0) return;
+      replayPlaying = true;
+      replayPlay.textContent = '⏸';
+      replayInterval = setInterval(playNextEvent, 500); // 500ms between events
+    }
+
+    function stopReplay() {
+      replayPlaying = false;
+      replayPlay.textContent = '▶';
+      if (replayInterval) {
+        clearInterval(replayInterval);
+        replayInterval = null;
+      }
+    }
+
+    replayToggle.onclick = async () => {
+      if (replayControls.style.display === 'none') {
+        // Enter replay mode
+        try {
+          const now = Math.floor(Date.now() / 1000);
+          const oneHourAgo = now - 3600;
+          const res = await fetch(`/events/replay?since=${oneHourAgo}&until=${now}`);
+          const data = await res.json();
+
+          replayEvents = data.events || [];
+          replayIndex = 0;
+
+          // Clear existing replay markers
+          chart.removeAllMarkers();
+
+          replayControls.style.display = 'flex';
+          replayToggle.textContent = 'Exit Replay';
+          updateReplayUI();
+
+          console.log(`Loaded ${replayEvents.length} events for replay`);
+        } catch (err) {
+          alert('Failed to load replay data');
+        }
+      } else {
+        // Exit replay mode
+        stopReplay();
+        replayControls.style.display = 'none';
+        replayToggle.textContent = 'Replay';
+        chart.removeAllMarkers();
+      }
+    };
+
+    replayPlay.onclick = () => {
+      if (replayPlaying) {
+        stopReplay();
+      } else {
+        startReplay();
+      }
+    };
+
+    replayStep.onclick = () => {
+      stopReplay();
+      playNextEvent();
+    };
+
+    replayScrubber.onclick = (e) => {
+      if (replayEvents.length === 0) return;
+      const rect = replayScrubber.getBoundingClientRect();
+      const progress = (e.clientX - rect.left) / rect.width;
+      replayIndex = Math.floor(progress * replayEvents.length);
+      replayIndex = Math.max(0, Math.min(replayIndex, replayEvents.length - 1));
+
+      // Clear and replay up to this point
+      chart.removeAllMarkers();
+      for (let i = 0; i <= replayIndex; i++) {
+        const evt = replayEvents[i];
+        if (evt.type !== 'Bar') {
+          const color = evt.type === 'TradeEntryIntent' ? '#ef4444' :
+                       evt.type === 'MacroShock' ? '#f59e0b' : '#22c55e';
+          addMarker(evt.ts, 'belowBar', color, 'circle', `${evt.type}: ${evt.key}`, `replay-${evt.ts}`);
+        }
+      }
+
+      updateReplayUI();
     };
 
     // Reconnect/backfill state

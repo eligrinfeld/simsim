@@ -79,7 +79,7 @@
   - [x] MacroAdapter
   - [x] CEPCore
   - [x] Broadcaster (WS + backfill)
-  - [ ] Storage layer
+  - [x] Storage layer
 
 ## **Implementation Plan**
 ### **Milestone M0 – Realtime POC (1–2 days)**
@@ -99,7 +99,7 @@
 - [ ] Preset rules with parameters
 - [ ] Live preview
 - [ ] Multi-symbol support & filtering
-- [ ] Event persistence
+- [x] Event persistence
 
 ### **Milestone M3 – Replay + Alerts + Explainability (1–2 weeks)**
 - [ ] Replay controls

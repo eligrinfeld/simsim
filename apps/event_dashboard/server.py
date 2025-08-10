@@ -126,6 +126,8 @@ cep = CEP()
 
 async def broadcast(evt: Event):
     msg = {"type": evt.type, "key": evt.key, "ts": int(evt.ts), "data": evt.data}
+    # Save all events to Supabase (raw + derived)
+    asyncio.create_task(supabase_client.save_event(msg))
     # Store non-Bar events for backfill
     if evt.type != "Bar":
         recent_events.append(msg)
@@ -143,6 +145,7 @@ async def broadcast(evt: Event):
                 pass
 
 # Connect CEP → frontend
+# Forward CEP events to frontend; persistence handled in broadcast
 cep.sink.subscribe(lambda e: asyncio.create_task(broadcast(e)))
 
 @app.get("/candles")
@@ -278,6 +281,45 @@ async def save_pine_result(payload: Dict[str, Any]):
             "success": True,
             "result_id": result_id,
             "message": "Results saved successfully"
+        })
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/events/replay")
+async def get_events_for_replay(symbol: str = None, since: int = None, until: int = None, types: str = None):
+    """Get events for replay functionality. Query Supabase or fallback to recent_events."""
+    try:
+        event_types = types.split(",") if types else None
+
+        # Try Supabase first
+        events = await supabase_client.get_events(
+            symbol=symbol,
+            since_ts=since,
+            until_ts=until,
+            event_types=event_types
+        )
+
+        # Fallback to in-memory recent_events if Supabase returns empty or unavailable
+        if not events and recent_events:
+            filtered_events = recent_events
+
+            if symbol:
+                filtered_events = [e for e in filtered_events if e.get("key") == symbol]
+            if since:
+                filtered_events = [e for e in filtered_events if e.get("ts", 0) >= since]
+            if until:
+                filtered_events = [e for e in filtered_events if e.get("ts", 0) <= until]
+            if event_types:
+                filtered_events = [e for e in filtered_events if e.get("type") in event_types]
+
+            events = sorted(filtered_events, key=lambda x: x.get("ts", 0))
+
+        return JSONResponse({
+            "events": events,
+            "count": len(events),
+            "source": "supabase" if events and supabase_client.enabled else "memory"
         })
 
     except Exception as e:

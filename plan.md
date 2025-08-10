@@ -68,7 +68,9 @@ Goal: Add a lightweight-charts dashboard that streams prices and overlays CEP-de
   - WebSocket reconnects gracefully; initial /candles load ≤2000 rows
   - Basic unit tests: /candles returns seed; WS handshake; CEP rule emits on synthetic feed
 - Next steps
-  - Subpanes (RSI/volume), topic filters, multi-symbol support, persistence of events
+  - Subpanes (RSI/volume), topic filters, multi-symbol support
+  - Event persistence (Done via Supabase)
+  - Next: Replay controls + Multi-symbol + Auth/RLS tighten
 
 
 ## Objectives
