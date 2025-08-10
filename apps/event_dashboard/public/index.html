@@ -443,8 +443,9 @@
       pineResult.textContent = 'Running...';
       try{
         const res = await fetch('/strategy/pine/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({code})});
-        if (!res.ok){ pineResult.textContent = 'Error: '+res.status; return; }
-        const js = await res.json();
+        const text = await res.text();
+        const js = (() => { try { return JSON.parse(text); } catch { return {error:text}; } })();
+        if (!res.ok){ pineResult.textContent = 'Error: '+(js.error||res.status); return; }
         const r = js.result || {};
         const sharpe = Number(r.sharpe);
         const totalRet = Number(r.total_return);
