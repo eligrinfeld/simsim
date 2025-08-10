@@ -61,38 +61,46 @@ class CompiledStrategy:
             # Wilder's smoothing approx via EMA
             return ema(tr, max(1, n))
 
+        # Helper to resolve parameter values
+        def resolve_param(val_str: str) -> float:
+            try:
+                return float(val_str)
+            except ValueError:
+                # Try to resolve as a parameter name
+                return float(self.params.get(val_str, val_str))
+
         # materialize indicators
         for name, spec in self.series.items():
             kind = spec[0]
             if kind == "sma":
-                src, n = spec[1], int(spec[2])
-                series_cache[name] = st.sma(series_cache[src], n)
+                src, n = spec[1], resolve_param(spec[2])
+                series_cache[name] = st.sma(series_cache[src], int(n))
             elif kind == "ema":
-                src, n = spec[1], int(spec[2])
-                series_cache[name] = ema(series_cache[src], n)
+                src, n = spec[1], resolve_param(spec[2])
+                series_cache[name] = ema(series_cache[src], int(n))
             elif kind == "rsi":
-                src, n = spec[1], int(spec[2])
-                series_cache[name] = st.rsi(series_cache[src], n)
+                src, n = spec[1], resolve_param(spec[2])
+                series_cache[name] = st.rsi(series_cache[src], int(n))
             elif kind == "bb_basis":
-                src, n, k = spec[1], int(spec[2]), float(spec[3])
-                mid = st.sma(series_cache[src], n)
-                sd = st.stdev(series_cache[src], n)
+                src, n, k = spec[1], resolve_param(spec[2]), resolve_param(spec[3])
+                mid = st.sma(series_cache[src], int(n))
+                sd = st.stdev(series_cache[src], int(n))
                 series_cache[name] = mid
                 # Upper/Lower will be computed in their own entries
             elif kind == "bb_upper":
-                src, n, k = spec[1], int(spec[2]), float(spec[3])
-                mid = st.sma(series_cache[src], n)
-                sd = st.stdev(series_cache[src], n)
+                src, n, k = spec[1], resolve_param(spec[2]), resolve_param(spec[3])
+                mid = st.sma(series_cache[src], int(n))
+                sd = st.stdev(series_cache[src], int(n))
                 series_cache[name] = [mid[i] + k * sd[i] if not math.isnan(mid[i]) else math.nan for i in range(len(mid))]
             elif kind == "bb_lower":
-                src, n, k = spec[1], int(spec[2]), float(spec[3])
-                mid = st.sma(series_cache[src], n)
-                sd = st.stdev(series_cache[src], n)
+                src, n, k = spec[1], resolve_param(spec[2]), resolve_param(spec[3])
+                mid = st.sma(series_cache[src], int(n))
+                sd = st.stdev(series_cache[src], int(n))
                 series_cache[name] = [mid[i] - k * sd[i] if not math.isnan(mid[i]) else math.nan for i in range(len(mid))]
             elif kind == "macd":
-                src, f, s, sig = spec[1], int(spec[2]), int(spec[3]), int(spec[4])
-                efast = ema(series_cache[src], f)
-                eslow = ema(series_cache[src], s)
+                src, f, s, sig = spec[1], resolve_param(spec[2]), resolve_param(spec[3]), resolve_param(spec[4])
+                efast = ema(series_cache[src], int(f))
+                eslow = ema(series_cache[src], int(s))
                 macd_line = [efast[i] - eslow[i] for i in range(len(efast))]
                 series_cache[name] = macd_line
             elif kind == "macd_signal":
