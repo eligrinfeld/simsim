@@ -460,16 +460,20 @@
 
     function playNextEvent() {
       if (replayIndex >= replayEvents.length) {
+        console.log('Replay finished');
         stopReplay();
         return;
       }
 
       const evt = replayEvents[replayIndex];
+      console.log(`Playing event ${replayIndex + 1}/${replayEvents.length}: ${evt.type} at ${formatTime(evt.ts)}`);
+
       // Add marker to chart
       if (evt.type !== 'Bar') {
         const color = evt.type === 'TradeEntryIntent' ? '#ef4444' :
                      evt.type === 'MacroShock' ? '#f59e0b' : '#22c55e';
         addMarker(evt.ts, 'belowBar', color, 'circle', `${evt.type}: ${evt.key}`, `replay-${evt.ts}`);
+        console.log(`Added marker for ${evt.type} at ${evt.ts}`);
       }
 
       replayIndex++;
@@ -477,13 +481,18 @@
     }
 
     function startReplay() {
-      if (replayEvents.length === 0) return;
+      if (replayEvents.length === 0) {
+        console.log('No events to replay');
+        return;
+      }
+      console.log(`Starting replay of ${replayEvents.length} events from index ${replayIndex}`);
       replayPlaying = true;
       replayPlay.textContent = '⏸';
       replayInterval = setInterval(playNextEvent, 500); // 500ms between events
     }
 
     function stopReplay() {
+      console.log('Stopping replay');
       replayPlaying = false;
       replayPlay.textContent = '▶';
       if (replayInterval) {
