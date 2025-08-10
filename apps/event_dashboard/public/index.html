@@ -133,33 +133,66 @@
       while (lane.children.length > MAX_PILLS) lane.removeChild(lane.firstChild);
     }
 
+    // Telemetry throttling (max ~4 req/sec)
+    const _tele_q = [];
+    let _tele_t = null;
+    function teleEnqueue(payload){ _tele_q.push(payload); _teleSchedule(); }
+    function _teleSchedule(){ if (_tele_t) return; _tele_t = setTimeout(_teleFlush, 250); }
+    function _teleFlush(){
+      const p = _tele_q.shift();
+      if (p){ fetch('/telemetry', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(p)}).catch(()=>{}); }
+      if (_tele_q.length){ _tele_t = setTimeout(_teleFlush, 250); } else { _tele_t = null; }
+    }
+
     function drawerContent(evt){
       const ts = new Date(evt.ts * 1000).toLocaleString();
       let why = '';
-      if (evt.type === 'Breakout') why = `Close > ${evt.data.lookback}-bar high`;
-      if (evt.type === 'NewsBurst') why = `≥${evt.data.count||3} positive news in 2m`;
-      if (evt.type === 'MacroShock') why = `|surprise| ≥ 0.3 (CPI)`;
-      if (evt.type === 'TradeEntryIntent') why = `MacroShock then Breakout within 15m`;
+      let evidence = '';
+      if (evt.type === 'Breakout') {
+        const price = evt.data.price ?? evt.data.close;
+        const lb = evt.data.lookback ?? 20;
+        why = `Close > ${lb}-bar high`;
+        evidence = `<div class=\"kv\"><span>Price</span><span>${price?.toFixed ? price.toFixed(2) : price}</span></div>`+
+                   `<div class=\"kv\"><span>Lookback</span><span>${lb}</span></div>`;
+      } else if (evt.type === 'NewsBurst') {
+        const count = evt.data.count ?? 3;
+        const windowSec = evt.data.window_sec ?? 120;
+        why = `≥${count} positive news in ${Math.round(windowSec/60)}m`;
+        evidence = `<div class=\"kv\"><span>Count</span><span>${count}</span></div>`+
+                   `<div class=\"kv\"><span>Window</span><span>${windowSec}s</span></div>`;
+      } else if (evt.type === 'MacroShock') {
+        const a = evt.data.actual ?? 0;
+        const e = evt.data.estimate ?? 0;
+        const s = evt.data.surprise;
+        why = `|surprise| ≥ 0.3 (CPI)`;
+        evidence = `<div class=\"kv\"><span>Actual</span><span>${a.toFixed ? a.toFixed(2) : a}</span></div>`+
+                   `<div class=\"kv\"><span>Estimate</span><span>${e.toFixed ? e.toFixed(2) : e}</span></div>`+
+                   `<div class=\"kv\"><span>Surprise</span><span>${s.toFixed ? s.toFixed(2) : s}</span></div>`;
+      } else if (evt.type === 'TradeEntryIntent') {
+        why = `MacroShock then Breakout within 15m`;
+        evidence = `<div class=\"kv\"><span>Rule</span><span>${evt.data.rule||'macro_then_breakout'}</span></div>`;
+      }
       return `
-        <div class="kv"><span><b>Type</b></span><span>${evt.type}</span></div>
-        <div class="kv"><span><b>Time</b></span><span>${ts}</span></div>
+        <div class=\"kv\"><span><b>Type</b></span><span>${evt.type}</span></div>
+        <div class=\"kv\"><span><b>Time</b></span><span>${ts}</span></div>
         <h5>Why it fired</h5>
         <div>${why || '—'}</div>
         <h5>Evidence</h5>
-        <pre>${JSON.stringify(evt.data, null, 2)}</pre>
+        ${evidence || '<div>—</div>'}
       `;
     }
 
-    function pill(color, label, evt){
+    function pill(color, label, evt, icon){
       const el = document.createElement('span');
       el.className = 'pill';
       const dot = document.createElement('i'); dot.className = 'dot'; dot.style.background = color;
-      el.appendChild(dot); el.appendChild(document.createTextNode(label));
+      const ic = document.createElement('span'); ic.textContent = icon || '';
+      el.appendChild(dot); el.appendChild(ic); el.appendChild(document.createTextNode(label));
       el.onclick = () => {
         drawerTitle.textContent = label;
         drawerBody.innerHTML = drawerContent(evt);
         drawer.classList.add('open');
-        fetch('/telemetry', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({cat:'pill', action:evt.type, ts:evt.ts})}).catch(()=>{});
+        teleEnqueue({cat:'pill', action:evt.type, ts:evt.ts});
       };
       return el;
     }
@@ -195,19 +228,19 @@
 
       if (evt.type === 'Breakout') {
         addMarker(evt.ts, 'aboveBar', '#22c55e', 'arrowUp', 'Breakout', evt.data?.price);
-        const node = pill('#22c55e', 'Breakout', evt); node.title = 'Technical breakout'; signalsLane.appendChild(node); trimLane(signalsLane);
+        const node = pill('#22c55e', 'Breakout', evt, '↗'); node.title = 'Technical breakout'; signalsLane.appendChild(node); trimLane(signalsLane);
       }
       if (evt.type === 'NewsBurst') {
         addMarker(evt.ts, 'aboveBar', '#22c55e', 'circle', 'NewsBurst (≥3 pos in 2m)', 'news'+evt.ts);
-        const node = pill('#22c55e', 'NewsBurst', evt); node.title = 'News burst'; newsLane.appendChild(node); trimLane(newsLane);
+        const node = pill('#22c55e', 'NewsBurst', evt, '●'); node.title = 'News burst'; newsLane.appendChild(node); trimLane(newsLane);
       }
       if (evt.type === 'MacroShock') {
         addMarker(evt.ts, 'belowBar', '#eab308', 'square', `MacroShock (CPI ${evt.data.surprise.toFixed(2)})`, 'macro'+evt.ts);
-        const node = pill('#eab308', `MacroShock ${evt.data.surprise.toFixed(2)}`, evt); node.title = 'Macro surprise'; macroLane.appendChild(node); trimLane(macroLane);
+        const node = pill('#eab308', `MacroShock ${evt.data.surprise.toFixed(2)}`, evt, '■'); node.title = 'Macro surprise'; macroLane.appendChild(node); trimLane(macroLane);
       }
       if (evt.type === 'TradeEntryIntent') {
         addMarker(evt.ts, 'belowBar', '#ef4444', 'arrowUp', 'TradeEntryIntent (macro→breakout)', 'entry'+evt.ts);
-        const node = pill('#ef4444', 'TradeEntryIntent', evt); node.title = 'Sequence match'; signalsLane.appendChild(node); trimLane(signalsLane);
+        const node = pill('#ef4444', 'TradeEntryIntent', evt, '★'); node.title = 'Sequence match'; signalsLane.appendChild(node); trimLane(signalsLane);
       }
       if (evt.type === 'NewsItem') { console.log('News:', evt.data.headline, 'sent:', evt.data.sentiment); }
     };

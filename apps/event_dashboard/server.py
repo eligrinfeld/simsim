@@ -115,10 +115,17 @@ candles: List[Dict[str, Any]] = []
 clients: List[WebSocket] = []
 clients_lock = asyncio.Lock()
 
+# Keep a small backfill buffer of recent non-Bar events
+RECENT_MAX = 500
+recent_events: Deque[Dict[str, Any]] = deque(maxlen=RECENT_MAX)
+
 cep = CEP()
 
 async def broadcast(evt: Event):
     msg = {"type": evt.type, "key": evt.key, "ts": int(evt.ts), "data": evt.data}
+    # Store non-Bar events for backfill
+    if evt.type != "Bar":
+        recent_events.append(msg)
     async with clients_lock:
         dead: List[WebSocket] = []
         for ws in clients:
@@ -138,6 +145,17 @@ cep.sink.subscribe(lambda e: asyncio.create_task(broadcast(e)))
 @app.get("/candles")
 async def get_candles(symbol: str = SYMBOL):
     return JSONResponse(candles[-2000:])
+
+@app.get("/events")
+async def get_events(since: Optional[int] = None):
+    if since is None:
+        return JSONResponse(list(recent_events))
+    try:
+        s = int(since)
+    except Exception:
+        s = 0
+    data = [e for e in list(recent_events) if int(e.get("ts", 0)) > s]
+    return JSONResponse(data)
 
 @app.websocket("/ws")
 async def ws(ws: WebSocket):
