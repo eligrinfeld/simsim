@@ -264,8 +264,10 @@
     });
 
     function addMarker(time, position, color, shape, text, id) {
-      markers.push({ time, position, color, shape, text, id });
+      const marker = { time, position, color, shape, text, id };
+      markers.push(marker);
       candleSeries.setMarkers(markers);
+      console.log(`Marker added: ${text} at ${time}, total markers: ${markers.length}`);
     }
 
     const wsState = document.getElementById('wsState');
@@ -468,12 +470,16 @@
       const evt = replayEvents[replayIndex];
       console.log(`Playing event ${replayIndex + 1}/${replayEvents.length}: ${evt.type} at ${formatTime(evt.ts)}`);
 
-      // Add marker to chart
+      // Add marker to chart AND process through event tracks
       if (evt.type !== 'Bar') {
         const color = evt.type === 'TradeEntryIntent' ? '#ef4444' :
                      evt.type === 'MacroShock' ? '#f59e0b' : '#22c55e';
         addMarker(evt.ts, 'belowBar', color, 'circle', `${evt.type}: ${evt.key}`, `replay-${evt.ts}`);
-        console.log(`Added marker for ${evt.type} at ${evt.ts}`);
+
+        // Also add to event tracks (pills)
+        handleEvent(evt);
+
+        console.log(`Added marker and track pill for ${evt.type} at ${evt.ts}`);
       }
 
       replayIndex++;
