@@ -50,6 +50,7 @@
     <span class="chip" data-indic="vol">Vol</span>
     <span class="chip" data-indic="rsi">RSI</span>
     <span class="chip" data-indic="macd">MACD</span>
+    <span class="chip" id="importPine">Import Pine</span>
   </div>
   <div id="chart"></div>
   <div class="legend">
@@ -73,6 +74,23 @@
     <div class="track" id="newsTrack">
       <h4>News</h4>
       <div class="lane" id="newsLane"></div>
+  <dialog id="pineDlg">
+    <form method="dialog" style="background:#0e1318;color:#e5e7eb;border:1px solid #20252b;border-radius:8px;max-width:780px;width:90vw">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #20252b">
+        <strong>Import Pine (MVP subset)</strong>
+        <button class="btn" value="close">Close</button>
+      </div>
+      <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+        <small>Supported: input.int/float, ta.sma/ema/rsi, ta.crossover/crossunder, strategy.entry/close</small>
+        <textarea id="pineCode" style="width:100%;height:200px;background:#0b0e11;color:#e5e7eb;border:1px solid #243040;border-radius:6px;padding:8px" placeholder="Paste Pine strategy..."></textarea>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn" id="pinePreview">Preview</button>
+          <span id="pineStatus" style="font-size:12px;color:#9aa4b2"></span>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
     </div>
     <div class="track" id="signalsTrack">
       <h4>Signals</h4>
@@ -197,6 +215,14 @@
         rememberTs(evt.ts||0);
       }
     }
+
+	    async function fetchBackfill(){
+	      try{
+	        const res = await fetch('/events' + (lastSeenTs ? (`?since=${lastSeenTs}`) : ''));
+	        if (res.ok){ const rows = await res.json(); replay(rows); }
+	      }catch(e){}
+	    }
+
 
     function handleEvent(evt){
       lastEvt.textContent = `${evt.type} @ ${new Date(evt.ts * 1000).toLocaleTimeString()}`;
@@ -388,15 +414,35 @@
       open();
     }
 
+    // Pine dialog handlers
+    const pineDlg = document.getElementById('pineDlg');
+    document.getElementById('importPine').onclick = () => pineDlg.showModal();
+    document.getElementById('pinePreview').onclick = async () => {
+      const code = document.getElementById('pineCode').value;
+      const st = document.getElementById('pineStatus');
+      st.textContent = 'Running...';
+      try{
+        const res = await fetch('/strategy/pine/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({code})});
+        if (!res.ok){ st.textContent = 'Error: '+res.status; return; }
+        const js = await res.json();
+        st.textContent = `${js.result.name} | Sharpe ${js.result.sharpe.toFixed(2)} | Return ${(js.result.total_return*100).toFixed(1)}%`;
+        // overlay trades
+        js.result.trades.forEach(t => {
+          addMarker(t.ts, t.side==='buy'?'belowBar':'aboveBar', t.side==='buy'?'#22c55e':'#ef4444', t.side==='buy'?'arrowUp':'arrowDown', (t.side==='buy'?'Buy':'Sell')+` @ ${t.price.toFixed(2)}`, `${t.side}${t.ts}`);
+        });
+        // open drawer with a short explanation
+        drawerTitle.textContent = js.result.name;
+        drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${js.result.sharpe.toFixed(2)}</span></div><div class='kv'><span>Total Return</span><span>${(js.result.total_return*100).toFixed(1)}%</span></div><div class='kv'><span>Max DD</span><span>${(js.result.max_drawdown*100).toFixed(1)}%</span></div>`;
+        drawer.classList.add('open');
+      }catch(e){ st.textContent = 'Error'; }
+    };
+
     connectWS();
 
     new ResizeObserver(entries => {
       if (!entries.length) return;
       const { width, height } = entries[0].contentRect;
       chart.applyOptions({ width, height });
-    }).observe(container);
-  </script>
-
     }).observe(container);
   </script>
 
