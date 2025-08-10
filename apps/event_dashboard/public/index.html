@@ -442,12 +442,17 @@
         const res = await fetch('/strategy/pine/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({code})});
         if (!res.ok){ pineResult.textContent = 'Error: '+res.status; return; }
         const js = await res.json();
-        pineResult.textContent = `${js.result.name} | Sharpe ${js.result.sharpe.toFixed(2)} | Return ${(js.result.total_return*100).toFixed(1)}%`;
-        js.result.trades.forEach(t => {
+        const r = js.result || {};
+        const sharpe = Number(r.sharpe);
+        const totalRet = Number(r.total_return);
+        const mdd = Number(r.max_drawdown);
+        const fmt = (x, p=2) => Number.isFinite(x) ? x.toFixed(p) : '-';
+        pineResult.textContent = `${r.name || 'Strategy'} | Sharpe ${fmt(sharpe)} | Return ${Number.isFinite(totalRet) ? (totalRet*100).toFixed(1) : '-' }% | Trades ${Array.isArray(r.trades)? r.trades.length : 0}`;
+        (r.trades||[]).forEach(t => {
           addMarker(t.ts, t.side==='buy'?'belowBar':'aboveBar', t.side==='buy'?'#22c55e':'#ef4444', t.side==='buy'?'arrowUp':'arrowDown', (t.side==='buy'?'Buy':'Sell')+` @ ${t.price.toFixed(2)}`, `${t.side}${t.ts}`);
         });
-        drawerTitle.textContent = js.result.name;
-        drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${js.result.sharpe.toFixed(2)}</span></div><div class='kv'><span>Total Return</span><span>${(js.result.total_return*100).toFixed(1)}%</span></div><div class='kv'><span>Max DD</span><span>${(js.result.max_drawdown*100).toFixed(1)}%</span></div>`;
+        drawerTitle.textContent = r.name || 'Strategy';
+        drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${fmt(sharpe)}</span></div><div class='kv'><span>Total Return</span><span>${Number.isFinite(totalRet)?(totalRet*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Max DD</span><span>${Number.isFinite(mdd)?(mdd*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Trades</span><span>${Array.isArray(r.trades)? r.trades.length : 0}</span></div>`;
         drawer.classList.add('open');
       }catch(err){ pineResult.textContent = 'Error'; }
     });
