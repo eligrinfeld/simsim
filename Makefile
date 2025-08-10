@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: setup dev up down run-pipeline test format
+.PHONY: setup dev up down run-pipeline run-event-dashboard test format
 setup:
 	python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 dev:
@@ -10,6 +10,8 @@ down:
 	docker compose down
 run-pipeline:
 	source .venv/bin/activate && python -m src.core.pipeline --config configs/example_equity.yaml
+run-event-dashboard:
+	source .venv/bin/activate && uvicorn apps.event_dashboard.server:app --host 127.0.0.1 --port 8010 --reload
 test:
 	source .venv/bin/activate && python -m pytest
 format:
