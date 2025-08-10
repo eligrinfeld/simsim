@@ -93,7 +93,7 @@
 - [ ] Bars adapter (WS w/ reconnect)
 - [ ] News adapter (NewsAPI+RSS, sentiment scoring)
 - [ ] Macro schedule + surprise calc
-- [ ] Backfill /events; client reconnect logic
+- [x] Backfill /events; client reconnect logic
 
 ### **Milestone M2 – Rule Builder + Multi-Symbol (3–5 days)**
 - [ ] Preset rules with parameters
