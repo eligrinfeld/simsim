@@ -98,6 +98,18 @@
     </div>
   </div>
 
+  <section id="pineSection" style="padding:16px">
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:980px;margin:0 auto">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Import Pine (MVP subset)</strong>
+        <button class="btn" id="pineRun">Preview</button>
+      </div>
+      <small>Supported: input.int/float, ta.sma/ema/rsi, ta.crossover/crossunder, strategy.entry/close, bbands, macd, stoch, supertrend, thresholds</small>
+      <textarea id="pineCodeArea" style="width:100%;height:180px;background:#0b0e11;color:#e5e7eb;border:1px solid #243040;border-radius:6px;padding:8px" placeholder="Paste Pine strategy..."></textarea>
+      <div id="pineResult" style="font-size:12px;color:#9aa4b2"></div>
+    </div>
+  </section>
+
   <div class="drawer" id="drawer">
     <div class="hd"><strong id="drawerTitle">Event</strong><button class="btn" id="drawerClose">Close</button></div>
     <div class="bd" id="drawerBody"></div>
@@ -418,25 +430,34 @@
     // Pine dialog handlers
     const pineDlg = document.getElementById('pineDlg');
     document.getElementById('importPine').onclick = () => pineDlg.showModal();
+    // Pine section handler
+    const pineArea = document.getElementById('pineCodeArea');
+    const pineRunBtn = document.getElementById('pineRun');
+    const pineResult = document.getElementById('pineResult');
+    pineRunBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const code = pineArea.value;
+      pineResult.textContent = 'Running...';
+      try{
+        const res = await fetch('/strategy/pine/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({code})});
+        if (!res.ok){ pineResult.textContent = 'Error: '+res.status; return; }
+        const js = await res.json();
+        pineResult.textContent = `${js.result.name} | Sharpe ${js.result.sharpe.toFixed(2)} | Return ${(js.result.total_return*100).toFixed(1)}%`;
+        js.result.trades.forEach(t => {
+          addMarker(t.ts, t.side==='buy'?'belowBar':'aboveBar', t.side==='buy'?'#22c55e':'#ef4444', t.side==='buy'?'arrowUp':'arrowDown', (t.side==='buy'?'Buy':'Sell')+` @ ${t.price.toFixed(2)}`, `${t.side}${t.ts}`);
+        });
+        drawerTitle.textContent = js.result.name;
+        drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${js.result.sharpe.toFixed(2)}</span></div><div class='kv'><span>Total Return</span><span>${(js.result.total_return*100).toFixed(1)}%</span></div><div class='kv'><span>Max DD</span><span>${(js.result.max_drawdown*100).toFixed(1)}%</span></div>`;
+        drawer.classList.add('open');
+      }catch(err){ pineResult.textContent = 'Error'; }
+    });
+
     document.getElementById('pinePreview').onclick = async () => {
       const code = document.getElementById('pineCode').value;
       const st = document.getElementById('pineStatus');
       st.textContent = 'Running...';
       try{
         const res = await fetch('/strategy/pine/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({code})});
-
-    // Pine dialog handlers with fallback
-    const pineDlg = document.getElementById('pineDlg');
-    const pineOpen = document.getElementById('importPine');
-    const pineCloseBtn = document.querySelector('#pineDlg .btn[value="close"]');
-    pineOpen.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (pineDlg.showModal) pineDlg.showModal(); else pineDlg.setAttribute('open','');
-    });
-    pineCloseBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (pineDlg.close) pineDlg.close(); else pineDlg.removeAttribute('open');
-    });
 
         if (!res.ok){ st.textContent = 'Error: '+res.status; return; }
         const js = await res.json();
