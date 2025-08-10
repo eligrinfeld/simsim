@@ -1,0 +1,12 @@
+{"ts": "2025-08-10T16:03:49.464850+00:00", "events": {"cat": "pill", "action": "NewsBurst", "ts": 1754841342}}
+{"ts": "2025-08-10T16:03:50.981975+00:00", "events": {"cat": "pill", "action": "NewsBurst", "ts": 1754841342}}
+{"ts": "2025-08-10T16:03:55.400244+00:00", "events": {"cat": "pill", "action": "MacroShock", "ts": 1754841369}}
+{"ts": "2025-08-10T17:00:03.925872+00:00", "events": {"cat": "filters", "action": "signals", "enabled": false}}
+{"ts": "2025-08-10T17:00:04.816268+00:00", "events": {"cat": "filters", "action": "signals", "enabled": true}}
+{"ts": "2025-08-10T17:00:05.941857+00:00", "events": {"cat": "filters", "action": "signals", "enabled": false}}
+{"ts": "2025-08-10T17:00:07.294520+00:00", "events": {"cat": "filters", "action": "news", "enabled": false}}
+{"ts": "2025-08-10T17:00:12.693478+00:00", "events": {"cat": "filters", "action": "macro", "enabled": false}}
+{"ts": "2025-08-10T18:06:04.356666+00:00", "events": {"cat": "filters", "action": "signals", "enabled": true}}
+{"ts": "2025-08-10T18:06:05.470093+00:00", "events": {"cat": "filters", "action": "signals", "enabled": false}}
+{"ts": "2025-08-10T18:06:06.775655+00:00", "events": {"cat": "filters", "action": "signals", "enabled": true}}
+{"ts": "2025-08-10T18:06:07.824449+00:00", "events": {"cat": "filters", "action": "signals", "enabled": false}}
