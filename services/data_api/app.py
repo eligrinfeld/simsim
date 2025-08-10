@@ -5,6 +5,13 @@ import os
 import re
 import requests
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, rely on system env vars
+
 app = FastAPI(title="Data API Gateway")
 
 
@@ -230,3 +237,12 @@ def fundamentals(ticker: str):
     except Exception:
         # If sec_api not installed or any error occurs, return empty fundamentals
         return {"ticker": ticker, "fundamentals": {}}
+
+
+@app.get("/news")
+def news(query: Optional[str] = None):
+    """
+    Placeholder news search endpoint. Returns an empty list by default.
+    Later can integrate a provider and support pagination.
+    """
+    return {"query": query, "articles": []}
