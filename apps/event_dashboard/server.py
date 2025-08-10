@@ -241,8 +241,6 @@ def install_rules():
         emit_type="TradeEntryIntent",
     )
 
-@app.on_event("startup")
-
 @app.post("/telemetry")
 async def telemetry(events: Dict[str, Any]):
     try:
@@ -254,10 +252,10 @@ async def telemetry(events: Dict[str, Any]):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+@app.on_event("startup")
 async def on_startup():
     install_rules()
     asyncio.create_task(price_loop())
     asyncio.create_task(news_loop())
     asyncio.create_task(macro_loop())
-
 
