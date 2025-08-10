@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <title>Event-Aware Trading Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system; background: #0b0e11; color: #e6e6e6; }
@@ -247,6 +248,9 @@
       return { macdLine, signalLine, hist };
     }
 
+    // Symbol management - declare early
+    let currentSymbol = 'SPY';
+
     fetch(`/candles?symbol=${currentSymbol}`).then(r => r.json()).then(rows => {
       candleSeries.setData(rows.map(k => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close })));
       const closes = rows.map(k=>k.close);
@@ -280,8 +284,7 @@
 
     const wsState = document.getElementById('wsState');
 
-    // Symbol management
-    let currentSymbol = 'SPY';
+    // Symbol selector (currentSymbol already declared above)
     const symbolSelector = document.getElementById('symbolSelector');
 
     async function switchSymbol(newSymbol) {
