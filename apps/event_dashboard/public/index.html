@@ -427,9 +427,12 @@
       open();
     }
 
-    // Pine dialog handlers
+    // Pine dialog handlers (guarded for browsers without <dialog>)
     const pineDlg = document.getElementById('pineDlg');
-    document.getElementById('importPine').onclick = () => pineDlg.showModal();
+    document.getElementById('importPine').onclick = () => {
+      if (pineDlg && typeof pineDlg.showModal === 'function') { pineDlg.showModal(); }
+      else { document.getElementById('pineSection')?.scrollIntoView({behavior:'smooth'}); }
+    };
     // Pine section handler
     const pineArea = document.getElementById('pineCodeArea');
     const pineRunBtn = document.getElementById('pineRun');
