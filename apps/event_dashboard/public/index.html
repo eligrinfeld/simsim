@@ -16,9 +16,12 @@
     .dot.green{background:#22c55e}.dot.red{background:#ef4444}.dot.blue{background:#60a5fa}.dot.yellow{background:#eab308}
     .panel { display:flex; gap:16px; padding: 8px 16px; font-size: 12px; color:#a7b0bd; }
     .panel .kv { background:#0e1318;border:1px solid #20252b;border-radius:10px;padding:6px 10px;}
+    .filters { display:flex; gap:8px; padding: 6px 16px; }
+    .chip { border:1px solid #243040; background:#0e1318; color:#d1d5db; padding:4px 10px; border-radius:999px; font-size:11px; cursor:pointer; }
+    .chip.active { background:#1f2937; border-color:#2b3645; }
     .tracks { display:flex; flex-direction:column; gap:6px; padding: 6px 16px 12px; }
     .track { display:flex; align-items:center; gap:10px; }
-    .track h4 { margin:0; font-size:12px; color:#9aa4b2; width:110px; }
+    .track h4 { margin:0; font-size:12px; color:#9aa4b2; width:110px; display:flex; align-items:center; gap:8px; }
     .lane { display:flex; flex-wrap:wrap; gap:6px; }
     .pill { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; font-size:11px; cursor:pointer; border:1px solid #243040; background:#0e1318; color:#d1d5db; }
     .pill .dot { width:6px; height:6px; border-radius:999px; display:inline-block; }
@@ -26,6 +29,8 @@
     .drawer.open { transform: translateX(0); }
     .drawer .hd { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom:1px solid #20252b; }
     .drawer .bd { padding:12px 14px; font-size:13px; color:#c6ced8; }
+    .drawer .bd h5 { margin:10px 0 6px; font-size:12px; color:#9aa4b2; }
+    .drawer .bd .kv { display:flex; justify-content:space-between; }
     .btn { background:#1f2937; border:1px solid #2b3645; color:#e5e7eb; padding:4px 8px; border-radius:6px; cursor:pointer; }
   </style>
 </head>
@@ -35,6 +40,12 @@
     <span class="badge">lightweight-charts</span>
     <span class="badge">Live demo</span>
   </header>
+  <div class="filters">
+    <span class="chip active" data-filter="macro">Macro</span>
+    <span class="chip active" data-filter="news">News</span>
+    <span class="chip active" data-filter="signals">Signals</span>
+    <span class="chip" id="clearPills">Clear</span>
+  </div>
   <div id="chart"></div>
   <div class="legend">
     <span><i class="dot blue"></i> Bar</span>
@@ -104,6 +115,39 @@
     const drawerClose = document.getElementById('drawerClose');
     drawerClose.onclick = () => drawer.classList.remove('open');
 
+    const filters = { macro: true, news: true, signals: true };
+    document.querySelectorAll('.chip[data-filter]').forEach(ch => {
+      ch.addEventListener('click', () => {
+        const k = ch.getAttribute('data-filter');
+        filters[k] = !filters[k];
+        ch.classList.toggle('active', filters[k]);
+        // Show/hide lanes
+        document.getElementById(k + 'Track').style.display = filters[k] ? 'flex' : 'none';
+      });
+    });
+
+    const MAX_PILLS = 50;
+    function trimLane(lane){
+      while (lane.children.length > MAX_PILLS) lane.removeChild(lane.firstChild);
+    }
+
+    function drawerContent(evt){
+      const ts = new Date(evt.ts * 1000).toLocaleString();
+      let why = '';
+      if (evt.type === 'Breakout') why = `Close > ${evt.data.lookback}-bar high`;
+      if (evt.type === 'NewsBurst') why = `≥${evt.data.count||3} positive news in 2m`;
+      if (evt.type === 'MacroShock') why = `|surprise| ≥ 0.3 (CPI)`;
+      if (evt.type === 'TradeEntryIntent') why = `MacroShock then Breakout within 15m`;
+      return `
+        <div class="kv"><span><b>Type</b></span><span>${evt.type}</span></div>
+        <div class="kv"><span><b>Time</b></span><span>${ts}</span></div>
+        <h5>Why it fired</h5>
+        <div>${why || '—'}</div>
+        <h5>Evidence</h5>
+        <pre>${JSON.stringify(evt.data, null, 2)}</pre>
+      `;
+    }
+
     function pill(color, label, evt){
       const el = document.createElement('span');
       el.className = 'pill';
@@ -111,11 +155,15 @@
       el.appendChild(dot); el.appendChild(document.createTextNode(label));
       el.onclick = () => {
         drawerTitle.textContent = label;
-        drawerBody.innerHTML = `<pre>${JSON.stringify(evt, null, 2)}</pre>`;
+        drawerBody.innerHTML = drawerContent(evt);
         drawer.classList.add('open');
       };
       return el;
     }
+
+    document.getElementById('clearPills').onclick = () => {
+      [macroLane, newsLane, signalsLane].forEach(l => l.innerHTML='');
+    };
 
     const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
     ws.onopen = () => wsState.textContent = 'connected';
@@ -132,19 +180,19 @@
       }
       if (evt.type === 'Breakout') {
         addMarker(evt.ts, 'aboveBar', '#22c55e', 'arrowUp', 'Breakout', evt.data?.price);
-        signalsLane.appendChild(pill('#22c55e', 'Breakout', evt));
+        const node = pill('#22c55e', 'Breakout', evt); signalsLane.appendChild(node); trimLane(signalsLane);
       }
       if (evt.type === 'NewsBurst') {
         addMarker(evt.ts, 'aboveBar', '#22c55e', 'circle', 'NewsBurst (≥3 pos in 2m)', 'news'+evt.ts);
-        newsLane.appendChild(pill('#22c55e', 'NewsBurst', evt));
+        const node = pill('#22c55e', 'NewsBurst', evt); newsLane.appendChild(node); trimLane(newsLane);
       }
       if (evt.type === 'MacroShock') {
         addMarker(evt.ts, 'belowBar', '#eab308', 'square', `MacroShock (CPI ${evt.data.surprise.toFixed(2)})`, 'macro'+evt.ts);
-        macroLane.appendChild(pill('#eab308', `MacroShock ${evt.data.surprise.toFixed(2)}`, evt));
+        const node = pill('#eab308', `MacroShock ${evt.data.surprise.toFixed(2)}`, evt); macroLane.appendChild(node); trimLane(macroLane);
       }
       if (evt.type === 'TradeEntryIntent') {
         addMarker(evt.ts, 'belowBar', '#ef4444', 'arrowUp', 'TradeEntryIntent (macro→breakout)', 'entry'+evt.ts);
-        signalsLane.appendChild(pill('#ef4444', 'TradeEntryIntent', evt));
+        const node = pill('#ef4444', 'TradeEntryIntent', evt); signalsLane.appendChild(node); trimLane(signalsLane);
       }
       if (evt.type === 'NewsItem') { console.log('News:', evt.data.headline, 'sent:', evt.data.sentiment); }
     };
