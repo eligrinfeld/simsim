@@ -113,8 +113,9 @@ async def index():
     return FileResponse("apps/event_dashboard/public/index.html")
 
 
-SYMBOL = "SPY"
-candles: List[Dict[str, Any]] = []
+DEFAULT_SYMBOL = "SPY"
+SUPPORTED_SYMBOLS = ["SPY", "QQQ", "AAPL", "MSFT", "TSLA", "NVDA"]
+candles: Dict[str, List[Dict[str, Any]]] = {symbol: [] for symbol in SUPPORTED_SYMBOLS}
 clients: List[WebSocket] = []
 clients_lock = asyncio.Lock()
 
@@ -149,8 +150,28 @@ async def broadcast(evt: Event):
 cep.sink.subscribe(lambda e: asyncio.create_task(broadcast(e)))
 
 @app.get("/candles")
-async def get_candles(symbol: str = SYMBOL):
-    return JSONResponse(candles[-2000:])
+async def get_candles(symbol: str = DEFAULT_SYMBOL):
+    if symbol not in candles:
+        return JSONResponse([])
+    return JSONResponse(candles[symbol][-2000:])
+
+
+@app.get("/symbols")
+async def get_symbols():
+    """Get list of supported symbols with current prices."""
+    symbols_info = []
+    for symbol in SUPPORTED_SYMBOLS:
+        if symbol in candles and len(candles[symbol]) > 0:
+            latest = candles[symbol][-1]
+            symbols_info.append({
+                "symbol": symbol,
+                "price": latest["close"],
+                "change": latest["close"] - latest["open"],
+                "volume": latest["volume"]
+            })
+        else:
+            symbols_info.append({"symbol": symbol, "price": 0, "change": 0, "volume": 0})
+    return JSONResponse(symbols_info)
 
 @app.get("/events")
 async def get_events(since: Optional[int] = None):
@@ -164,9 +185,11 @@ async def get_events(since: Optional[int] = None):
     return JSONResponse(data)
 
 @app.get("/strategy/best")
-async def best_strategy(symbol: str = SYMBOL):
+async def best_strategy(symbol: str = DEFAULT_SYMBOL):
     # Use the last N candles to evaluate strategies
-    window = candles[-400:]
+    if symbol not in candles or len(candles[symbol]) < 400:
+        return JSONResponse({"error": f"Insufficient data for {symbol}"})
+    window = candles[symbol][-400:]
     best = st.pick_best(window)
     expl = st.explain(best)
     return JSONResponse({
@@ -354,21 +377,30 @@ def next_candle(prev_close: float) -> Dict[str, Any]:
     return {"time": t, "open": round(o,2), "high": round(h,2), "low": round(l,2), "close": round(c,2), "volume": v}
 
 async def price_loop():
-    # seed
-    base = 450.0
-    last = base
-    for _ in range(200):
-        k = next_candle(last); last = k["close"]; candles.append(k)
+    # Seed data for all symbols
+    base_prices = {"SPY": 450.0, "QQQ": 380.0, "AAPL": 180.0, "MSFT": 420.0, "TSLA": 250.0, "NVDA": 900.0}
+
+    for symbol in SUPPORTED_SYMBOLS:
+        base = base_prices.get(symbol, 100.0)
+        last = base
+        for _ in range(200):
+            k = next_candle(last); last = k["close"]; candles[symbol].append(k)
+
     while True:
         await asyncio.sleep(1.0)
-        k = next_candle(candles[-1]["close"])
-        candles.append(k)
-        await broadcast(Event("Bar", key=SYMBOL, ts=k["time"], data=k))
-        cep.ingest(Bar(SYMBOL, k["open"], k["high"], k["low"], k["close"], k["volume"]))
-        if len(candles) >= 21:
-            hh20 = max(c["high"] for c in candles[-20:])
-            if k["close"] > hh20:
-                cep.sink.emit(Event("Breakout", key=SYMBOL, ts=k["time"], data={"price": k["close"], "lookback": 20}))
+        # Update all symbols
+        for symbol in SUPPORTED_SYMBOLS:
+            if len(candles[symbol]) > 0:
+                k = next_candle(candles[symbol][-1]["close"])
+                candles[symbol].append(k)
+                await broadcast(Event("Bar", key=symbol, ts=k["time"], data=k))
+                cep.ingest(Bar(symbol, k["open"], k["high"], k["low"], k["close"], k["volume"]))
+
+                # Check for breakouts per symbol
+                if len(candles[symbol]) >= 21:
+                    hh20 = max(c["high"] for c in candles[symbol][-20:])
+                    if k["close"] > hh20:
+                        cep.sink.emit(Event("Breakout", key=symbol, ts=k["time"], data={"price": k["close"], "lookback": 20}))
 
 async def news_loop():
     headlines_pos = ["Analyst upgrade", "Buyback announced", "Strong sector flows"]
@@ -377,7 +409,9 @@ async def news_loop():
         await asyncio.sleep(random.uniform(7, 12))
         sent = random.choice([+0.7, +0.8, -0.7, -0.8])
         hl = random.choice(headlines_pos if sent > 0 else headlines_neg)
-        evt = NewsItem(SYMBOL, sentiment=sent, headline=hl)
+        # Pick a random symbol for news
+        symbol = random.choice(SUPPORTED_SYMBOLS)
+        evt = NewsItem(symbol, sentiment=sent, headline=hl)
         cep.ingest(evt)
         await broadcast(evt)
 
@@ -393,12 +427,13 @@ async def macro_loop():
 # CEP rules
 
 def install_rules():
+    # News burst rule - now works across all symbols
     cep.on_sliding_count(
         name="news_burst_pos",
         event_type="NewsItem",
         within_sec=120,
         threshold=3,
-        where=lambda n: n.data.get("sentiment", 0) >= 0.6 and n.key == SYMBOL,
+        where=lambda n: n.data.get("sentiment", 0) >= 0.6,  # Removed symbol filter to work across all symbols
         emit_type="NewsBurst",
     )
     cep.on_macro_shock(series="US:CPI", surprise_abs_ge=0.3, emit_type="MacroShock")
