@@ -27,7 +27,7 @@
     .lane { display:flex; flex-wrap:wrap; gap:6px; }
     .pill { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; font-size:11px; cursor:pointer; border:1px solid #243040; background:#0e1318; color:#d1d5db; }
     .pill .dot { width:6px; height:6px; border-radius:999px; display:inline-block; }
-    .drawer { position:fixed; top:0; right:0; width:360px; max-width:80vw; height:100vh; background:#0e1318; border-left:1px solid #20252b; transform: translateX(100%); transition: transform .2s ease; box-shadow: -8px 0 20px rgba(0,0,0,.3); }
+    .drawer { position:fixed; top:0; right:0; width:360px; max-width:80vw; height:100vh; background:#0e1318; border-left:1px solid #20252b; transform: translateX(100%); transition: transform .2s ease; box-shadow: -8px 0 20px rgba(0,0,0,.3); z-index: 9999; }
     .drawer.open { transform: translateX(0); }
     .drawer .hd { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom:1px solid #20252b; }
     .drawer .bd { padding:12px 14px; font-size:13px; color:#c6ced8; }
