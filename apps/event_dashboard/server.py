@@ -149,6 +149,9 @@ clients_lock = asyncio.Lock()
 RECENT_MAX = 500
 recent_events: Deque[Dict[str, Any]] = deque(maxlen=RECENT_MAX)
 
+# Latest quote snapshot per symbol (from Yahoo Finance info)
+latest_quotes: Dict[str, Dict[str, Any]] = {}
+
 cep = CEP()
 
 async def broadcast(evt: Event):
@@ -209,19 +212,36 @@ async def get_candles(symbol: str = DEFAULT_SYMBOL, interval: str | None = None,
 
 @app.get("/symbols")
 async def get_symbols():
-    """Get list of supported symbols with current prices."""
+    """Get list of supported symbols with current prices and percent change.
+    Prefers latest_quotes (from Yahoo) for accurate day change and volume; falls back to last candle.
+    """
     symbols_info = []
     for symbol in SUPPORTED_SYMBOLS:
-        if symbol in candles and len(candles[symbol]) > 0:
-            latest = candles[symbol][-1]
+        q = latest_quotes.get(symbol)
+        if q:
             symbols_info.append({
                 "symbol": symbol,
-                "price": latest["close"],
-                "change": latest["close"] - latest["open"],
-                "volume": latest["volume"]
+                "price": q.get("price", 0),
+                "change": q.get("change", 0),
+                "changePercent": q.get("changePercent", 0),
+                "volume": q.get("volume", 0),
+            })
+            continue
+        if symbol in candles and len(candles[symbol]) > 0:
+            latest = candles[symbol][-1]
+            prev_open = latest.get("open", 0)
+            close = latest.get("close", 0)
+            ch = close - prev_open
+            pct = (ch / prev_open) if prev_open else 0
+            symbols_info.append({
+                "symbol": symbol,
+                "price": close,
+                "change": ch,
+                "changePercent": pct,
+                "volume": latest.get("volume", 0)
             })
         else:
-            symbols_info.append({"symbol": symbol, "price": 0, "change": 0, "volume": 0})
+            symbols_info.append({"symbol": symbol, "price": 0, "change": 0, "changePercent": 0, "volume": 0})
     return JSONResponse(symbols_info)
 
 
@@ -684,7 +704,7 @@ async def get_latest_price(symbol: str) -> Dict[str, Any]:
         ticker = yf.Ticker(symbol)
         info = ticker.info
 
-        return {
+        q = {
             "symbol": symbol,
             "price": info.get('currentPrice', info.get('regularMarketPrice', 0)),
             "change": info.get('regularMarketChange', 0),
@@ -692,6 +712,9 @@ async def get_latest_price(symbol: str) -> Dict[str, Any]:
             "volume": info.get('regularMarketVolume', 0),
             "timestamp": int(time.time())
         }
+        # Update latest snapshot
+        latest_quotes[symbol] = q
+        return q
     except Exception as e:
         print(f"❌ Failed to get latest price for {symbol}: {e}")
         return {"symbol": symbol, "price": 0, "change": 0, "changePercent": 0, "volume": 0, "timestamp": int(time.time())}
