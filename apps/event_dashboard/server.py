@@ -705,15 +705,24 @@ async def get_latest_price(symbol: str) -> Dict[str, Any]:
         ticker = yf.Ticker(symbol)
         info = ticker.info
 
+        # Pull both live/regular fields and normalize
+        price = info.get('currentPrice', info.get('regularMarketPrice', 0))
+        ch_abs = info.get('regularMarketChange', 0)
+        ch_pct_raw = info.get('regularMarketChangePercent', 0)
+        # If Yahoo returned percent as e.g., 0.73 (meaning 0.73%), convert to fraction
+        ch_pct = (ch_pct_raw or 0) / 100.0
+        # If unavailable, derive from absolute change
+        if not ch_pct and price:
+            prev = price - ch_abs
+            ch_pct = (ch_abs / prev) if prev else 0
         q = {
             "symbol": symbol,
-            "price": info.get('currentPrice', info.get('regularMarketPrice', 0)),
-            "change": info.get('regularMarketChange', 0),
-            "changePercent": info.get('regularMarketChangePercent', 0),
+            "price": price,
+            "change": ch_abs,
+            "changePercent": ch_pct,
             "volume": info.get('regularMarketVolume', 0),
             "timestamp": int(time.time())
         }
-        # Update latest snapshot
         latest_quotes[symbol] = q
         return q
     except Exception as e:

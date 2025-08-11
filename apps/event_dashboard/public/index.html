@@ -368,8 +368,13 @@
 	      const el = document.getElementById('watchlist'); if(!el) return;
 	      el.innerHTML = '';
 	      (list||[]).forEach(it=>{
-	        const pct = (Number(it.changePercent) || 0);
-	        const green = (Number(it.change||0) >= 0) || pct > 0;
+	        let pct = Number(it.changePercent);
+	        if (!isFinite(pct) || pct === 0){
+	          const price = Number(it.price||0), ch = Number(it.change||0);
+	          const prev = price - ch; // approximate previous close
+	          pct = prev ? (ch / prev) : 0;
+	        }
+	        const green = pct > 0 || Number(it.change||0) > 0;
 	        const row = document.createElement('div');
 	        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px;border:1px solid #243040;border-radius:8px;background:#0b0e11';
 	        const pctText = `${pct>0?'+':''}${(pct*100).toFixed(2)}%`;
