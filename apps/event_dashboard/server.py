@@ -3,6 +3,10 @@ import asyncio, random, time, uuid, os, json, math, traceback
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
+import requests
+import re
+from textblob import TextBlob
+import feedparser
 from dataclasses import dataclass, field, asdict
 from typing import Any, Callable, Deque, Dict, List, Optional
 from collections import defaultdict, deque
@@ -13,7 +17,15 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 import strategies as st
-from supabase import supabase_client
+try:
+    from supabase import supabase_client
+except ImportError:
+    # Fallback if supabase module not available
+    class MockSupabaseClient:
+        enabled = False
+        async def get_events(self, **kwargs): return []
+        async def save_event(self, **kwargs): pass
+    supabase_client = MockSupabaseClient()
 
 # ---------- Event model ----------
 @dataclass
@@ -531,6 +543,190 @@ async def initialize_live_data():
     print("✅ Live data initialization complete")
 
 
+# Live news fetching functions
+NEWS_API_KEY = os.getenv("NEWS_API_KEY")  # Get from newsapi.org
+ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")  # Get from alphavantage.co
+
+def analyze_sentiment(text: str) -> float:
+    """Analyze sentiment of text using TextBlob. Returns score between -1 and 1."""
+    try:
+        blob = TextBlob(text)
+        return blob.sentiment.polarity
+    except:
+        return 0.0
+
+def extract_symbols_from_text(text: str) -> List[str]:
+    """Extract stock symbols mentioned in news text."""
+    text_upper = text.upper()
+    mentioned_symbols = []
+
+    # Check for direct symbol mentions
+    for symbol in SUPPORTED_SYMBOLS:
+        if symbol in text_upper:
+            mentioned_symbols.append(symbol)
+
+    # Check for company name mentions
+    company_names = {
+        "SPY": ["S&P 500", "SPY", "SPDR"],
+        "QQQ": ["NASDAQ", "QQQ", "INVESCO"],
+        "AAPL": ["APPLE", "IPHONE", "MAC", "IPAD"],
+        "MSFT": ["MICROSOFT", "WINDOWS", "AZURE", "OFFICE"],
+        "TSLA": ["TESLA", "ELON MUSK", "ELECTRIC VEHICLE", "EV"],
+        "NVDA": ["NVIDIA", "GPU", "AI CHIP", "GRAPHICS"]
+    }
+
+    for symbol, names in company_names.items():
+        for name in names:
+            if name in text_upper and symbol not in mentioned_symbols:
+                mentioned_symbols.append(symbol)
+                break
+
+    return mentioned_symbols if mentioned_symbols else ["SPY"]  # Default to SPY for market-wide news
+
+async def fetch_newsapi_articles(symbol: str = None) -> List[Dict[str, Any]]:
+    """Fetch news from NewsAPI."""
+    if not NEWS_API_KEY:
+        return []
+
+    try:
+        # Build query based on symbol
+        if symbol and symbol != "SPY":
+            company_queries = {
+                "QQQ": "NASDAQ OR technology stocks",
+                "AAPL": "Apple OR iPhone OR Tim Cook",
+                "MSFT": "Microsoft OR Azure OR Satya Nadella",
+                "TSLA": "Tesla OR Elon Musk OR electric vehicle",
+                "NVDA": "Nvidia OR GPU OR AI chips"
+            }
+            query = company_queries.get(symbol, f"{symbol} stock")
+        else:
+            query = "stock market OR S&P 500 OR Wall Street"
+
+        url = "https://newsapi.org/v2/everything"
+        params = {
+            "q": query,
+            "language": "en",
+            "sortBy": "publishedAt",
+            "pageSize": 20,
+            "apiKey": NEWS_API_KEY,
+            "from": (datetime.now() - timedelta(hours=6)).isoformat()
+        }
+
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            articles = []
+
+            for article in data.get("articles", []):
+                if article.get("title") and article.get("description"):
+                    text = f"{article['title']} {article['description']}"
+                    sentiment = analyze_sentiment(text)
+                    symbols = extract_symbols_from_text(text)
+
+                    articles.append({
+                        "title": article["title"],
+                        "description": article["description"],
+                        "url": article.get("url", ""),
+                        "publishedAt": article.get("publishedAt", ""),
+                        "source": article.get("source", {}).get("name", "NewsAPI"),
+                        "sentiment": sentiment,
+                        "symbols": symbols
+                    })
+
+            return articles
+
+    except Exception as e:
+        print(f"❌ NewsAPI error: {e}")
+
+    return []
+
+async def fetch_alpha_vantage_news(symbol: str = None) -> List[Dict[str, Any]]:
+    """Fetch news from Alpha Vantage."""
+    if not ALPHA_VANTAGE_KEY:
+        return []
+
+    try:
+        url = "https://www.alphavantage.co/query"
+        params = {
+            "function": "NEWS_SENTIMENT",
+            "tickers": symbol if symbol else "SPY,QQQ,AAPL,MSFT,TSLA,NVDA",
+            "limit": 50,
+            "apikey": ALPHA_VANTAGE_KEY
+        }
+
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            articles = []
+
+            for item in data.get("feed", []):
+                if item.get("title") and item.get("summary"):
+                    # Alpha Vantage provides sentiment scores
+                    sentiment_score = float(item.get("overall_sentiment_score", 0))
+
+                    # Extract relevant tickers
+                    ticker_sentiment = item.get("ticker_sentiment", [])
+                    symbols = [t.get("ticker") for t in ticker_sentiment if t.get("ticker") in SUPPORTED_SYMBOLS]
+                    if not symbols:
+                        symbols = ["SPY"]
+
+                    articles.append({
+                        "title": item["title"],
+                        "description": item["summary"][:200] + "..." if len(item["summary"]) > 200 else item["summary"],
+                        "url": item.get("url", ""),
+                        "publishedAt": item.get("time_published", ""),
+                        "source": item.get("source", "Alpha Vantage"),
+                        "sentiment": sentiment_score,
+                        "symbols": symbols
+                    })
+
+            return articles
+
+    except Exception as e:
+        print(f"❌ Alpha Vantage News error: {e}")
+
+    return []
+
+async def fetch_rss_news() -> List[Dict[str, Any]]:
+    """Fetch news from RSS feeds as fallback (no API key required)."""
+    rss_feeds = [
+        "https://feeds.finance.yahoo.com/rss/2.0/headline",
+        "https://www.marketwatch.com/rss/topstories",
+        "https://feeds.bloomberg.com/markets/news.rss",
+        "https://www.cnbc.com/id/100003114/device/rss/rss.html"
+    ]
+
+    articles = []
+
+    for feed_url in rss_feeds:
+        try:
+            feed = feedparser.parse(feed_url)
+
+            for entry in feed.entries[:5]:  # Limit to 5 articles per feed
+                if hasattr(entry, 'title') and hasattr(entry, 'summary'):
+                    text = f"{entry.title} {entry.summary}"
+                    sentiment = analyze_sentiment(text)
+                    symbols = extract_symbols_from_text(text)
+
+                    # Only include if sentiment is strong enough
+                    if abs(sentiment) >= 0.2:
+                        articles.append({
+                            "title": entry.title,
+                            "description": entry.summary[:200] + "..." if len(entry.summary) > 200 else entry.summary,
+                            "url": getattr(entry, 'link', ''),
+                            "publishedAt": getattr(entry, 'published', ''),
+                            "source": feed.feed.get('title', 'RSS Feed'),
+                            "sentiment": sentiment,
+                            "symbols": symbols
+                        })
+
+        except Exception as e:
+            print(f"❌ RSS feed error for {feed_url}: {e}")
+            continue
+
+    return articles
+
+
 @app.websocket("/ws")
 async def ws(ws: WebSocket):
     await ws.accept()
@@ -613,17 +809,64 @@ async def price_loop():
             await asyncio.sleep(30)  # Wait before retrying
 
 async def news_loop():
-    headlines_pos = ["Analyst upgrade", "Buyback announced", "Strong sector flows"]
-    headlines_neg = ["Regulatory probe", "Guidance cut", "Industry strike risk"]
+    """Live news fetching loop - checks for new articles every 5 minutes."""
+    print("📰 Starting live news monitoring...")
+    processed_articles = set()  # Track processed articles to avoid duplicates
+
     while True:
-        await asyncio.sleep(random.uniform(7, 12))
-        sent = random.choice([+0.7, +0.8, -0.7, -0.8])
-        hl = random.choice(headlines_pos if sent > 0 else headlines_neg)
-        # Pick a random symbol for news
-        symbol = random.choice(SUPPORTED_SYMBOLS)
-        evt = NewsItem(symbol, sentiment=sent, headline=hl)
-        cep.ingest(evt)
-        await broadcast(evt)
+        try:
+            # Fetch news from multiple sources
+            all_articles = []
+
+            # Fetch from NewsAPI
+            newsapi_articles = await fetch_newsapi_articles()
+            all_articles.extend(newsapi_articles)
+
+            # Fetch from Alpha Vantage
+            alpha_articles = await fetch_alpha_vantage_news()
+            all_articles.extend(alpha_articles)
+
+            # Fetch from RSS feeds as fallback
+            rss_articles = await fetch_rss_news()
+            all_articles.extend(rss_articles)
+
+            # Process new articles
+            new_articles_count = 0
+            for article in all_articles:
+                # Create unique ID for article
+                article_id = f"{article['title'][:50]}_{article.get('publishedAt', '')}"
+
+                if article_id not in processed_articles:
+                    processed_articles.add(article_id)
+
+                    # Process each symbol mentioned in the article
+                    for symbol in article['symbols']:
+                        # Only process if sentiment is strong enough
+                        if abs(article['sentiment']) >= 0.3:
+                            evt = NewsItem(
+                                symbol,
+                                sentiment=article['sentiment'],
+                                headline=article['title'][:100]
+                            )
+                            cep.ingest(evt)
+                            await broadcast(evt)
+                            new_articles_count += 1
+
+                            print(f"📰 News: {symbol} | {article['sentiment']:.2f} | {article['title'][:60]}...")
+
+            if new_articles_count > 0:
+                print(f"✅ Processed {new_articles_count} new news items")
+
+            # Clean up old processed articles (keep last 1000)
+            if len(processed_articles) > 1000:
+                processed_articles.clear()
+
+            # Wait 5 minutes before next check
+            await asyncio.sleep(300)
+
+        except Exception as e:
+            print(f"❌ News loop error: {e}")
+            await asyncio.sleep(60)  # Wait 1 minute before retrying
 
 async def macro_loop():
     while True:
