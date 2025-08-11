@@ -61,10 +61,12 @@
   - TradeEntryIntent: { rule: string, first: Event, then: Event }
 - REST
   - GET /candles?symbol=SPY → Candle[]
-  - GET /events?symbol=SPY&since=ts&types=… → Event[] (optional for backfill/reconnect)
+  - GET /events?symbol=SPY&since=ts&types=… → Event[] (implemented; backed by Supabase persistence)
   - POST /telemetry → 204 (client analytics)
 - WebSocket
   - /ws (server → client push): Bar, and derived Event messages
+- Storage
+  - Events persisted in Supabase (Postgres). Frontend can optionally use Supabase Realtime to subscribe to inserts.
 
 ---
 

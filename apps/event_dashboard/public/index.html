@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Event-Aware Trading Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system; background: #0b0e11; color: #e6e6e6; padding-left: 220px; padding-right: 340px; }
+    header { padding: 12px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #20252b; }
+    .badge { padding: 2px 8px; border-radius: 999px; background: #1f2937; font-size: 12px; }
+    #chart { height: 560px; }
+    .legend { display:flex; gap:12px; font-size: 12px; padding: 8px 16px; color: #a7b0bd;}
+    .legend span { display:inline-flex; align-items:center; gap:6px;}
+    .dot{width:8px;height:8px;border-radius:999px;display:inline-block}
+    .dot.green{background:#22c55e}.dot.red{background:#ef4444}.dot.blue{background:#60a5fa}.dot.yellow{background:#eab308}
+    .panel { display:flex; gap:16px; padding: 8px 16px; font-size: 12px; color:#a7b0bd; }
+    .panel .kv { background:#0e1318;border:1px solid #20252b;border-radius:10px;padding:6px 10px;}
+    .filters { display:flex; gap:8px; padding: 6px 16px; flex-wrap: wrap; }
+    .chip { border:1px solid #243040; background:#0e1318; color:#d1d5db; padding:4px 10px; border-radius:999px; font-size:11px; cursor:pointer; }
+    .chip.active { background:#1f2937; border-color:#2b3645; }
+    .subpanes { padding: 6px 16px; display:flex; flex-direction:column; gap:8px; }
+    .pane { height: 120px; border-top:1px solid #20252b; }
+    .tracks { display:flex; flex-direction:column; gap:6px; padding: 6px 16px 12px; }
+    .track { display:flex; align-items:center; gap:10px; }
+    .track h4 { margin:0; font-size:12px; color:#9aa4b2; width:110px; display:flex; align-items:center; gap:8px; }
+    .lane { display:flex; flex-wrap:wrap; gap:6px; }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; font-size:11px; cursor:pointer; border:1px solid #243040; background:#0e1318; color:#d1d5db; }
+    .pill .dot { width:6px; height:6px; border-radius:999px; display:inline-block; }
+    .drawer { position:fixed; top:0; right:0; width:360px; max-width:80vw; height:100vh; background:#0e1318; border-left:1px solid #20252b; transform: translateX(100%); transition: transform .2s ease; box-shadow: -8px 0 20px rgba(0,0,0,.3); z-index: 9999; }
+    .drawer.open { transform: translateX(0); }
+    .drawer .hd { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom:1px solid #20252b; }
+    .drawer .bd { padding:12px 14px; font-size:13px; color:#c6ced8; }
+    .drawer .bd h5 { margin:10px 0 6px; font-size:12px; color:#9aa4b2; }
+    .drawer .bd .kv { display:flex; justify-content:space-between; }
+    .drawer .bd .explain { margin-top:12px; padding:10px; background:#0a0d11; border:1px solid #1a1f25; border-radius:6px; font-size:12px; line-height:1.4; display:none; }
+    .drawer .bd .explain.show { display:block; }
+    .drawer .bd .explain h6 { margin:0 0 6px; color:#9aa4b2; font-size:11px; text-transform:uppercase; }
+    .drawer .bd .explain p { margin:4px 0; }
+    .drawer .bd .explain .metric { margin:8px 0; }
+    .drawer .bd .explain .assessment { margin-top:10px; padding:6px; background:#1a1f25; border-radius:4px; }
+    .btn { background:#1f2937; border:1px solid #2b3645; color:#e5e7eb; padding:4px 8px; border-radius:6px; cursor:pointer; }
+    .btn.active { background:#2563eb; border-color:#3b82f6; }
+    .replay-controls { display:flex; align-items:center; gap:8px; padding:8px 12px; background:#0e1318; border:1px solid #2b3645; border-radius:6px; margin:8px 0; }
+    .replay-scrubber { flex:1; height:4px; background:#2b3645; border-radius:2px; position:relative; cursor:pointer; }
+    .replay-scrubber .thumb { position:absolute; top:-4px; width:12px; height:12px; background:#3b82f6; border-radius:50%; cursor:grab; }
+    .replay-scrubber .thumb:active { cursor:grabbing; }
+    .replay-time { font-size:11px; color:#9aa4b2; min-width:120px; }
+  </style>
+  <aside id="leftNav" style="position:fixed;left:0;top:0;bottom:0;width:220px;border-right:1px solid #20252b;background:#0e1318;display:flex;flex-direction:column">
+    <div style="padding:10px 12px;border-bottom:1px solid #20252b;display:flex;align-items:center;gap:8px">
+      <strong style="font-size:14px;">simsim</strong>
+    </div>
+    <nav id="leftNavMenu" style="padding:8px 6px;display:flex;flex-direction:column;gap:4px;font-size:12px;color:#9aa4b2">
+      <span data-action="summary" style="padding:6px 10px;border-radius:6px;cursor:pointer;background:#141a20;color:#e5e7eb">Summary</span>
+      <span data-action="statistics" style="padding:6px 10px;border-radius:6px;cursor:pointer;">Statistics</span>
+      <span data-action="financials" style="padding:6px 10px;border-radius:6px;cursor:pointer;">Financials</span>
+      <span data-action="analysis" style="padding:6px 10px;border-radius:6px;cursor:pointer;">Analysis</span>
+      <span data-action="holdings" style="padding:6px 10px;border-radius:6px;cursor:pointer;">Holdings</span>
+    </nav>
+  </aside>
+
+  <aside id="rightRail" style="position:fixed;right:0;top:0;bottom:0;width:340px;border-left:1px solid #20252b;background:#0e1318;display:flex;flex-direction:column">
+    <div style="padding:10px 12px;border-bottom:1px solid #20252b;display:flex;align-items:center;gap:8px">
+      <input id="quoteLookup" placeholder="Quote Lookup" style="flex:1;background:#0b0e11;color:#e5e7eb;border:1px solid #2b3645;border-radius:6px;padding:6px 8px;font-size:12px" />
+    </div>
+    <div style="padding:10px 12px;border-bottom:1px solid #20252b">
+      <div style="font-size:12px;color:#9aa4b2;margin-bottom:6px">Market Summary</div>
+      <div id="marketSummary" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
+    </div>
+    <div style="padding:10px 12px;overflow:auto">
+      <div style="font-size:12px;color:#9aa4b2;margin-bottom:6px">Watchlist</div>
+      <div id="watchlist" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div style="height:12px"></div>
+      <div style="font-size:12px;color:#9aa4b2;margin:6px 0">Recent News</div>
+      <div id="recentNews" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </aside>
+</head>
+<body>
+  <header>
+    <div style="display:flex;align-items:center;gap:10px;flex:1">
+      <strong id="titleSymbol">SPY</strong>
+      <span class="badge" id="titlePrice">—</span>
+      <span class="badge" id="titleChange">—</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="badge">lightweight-charts</span>
+      <span class="badge">Live demo</span>
+    </div>
+  </header>
+  <div class="filters">
+    <select id="symbolSelector" style="background:#0e1318;color:#e5e7eb;border:1px solid #2b3645;border-radius:4px;padding:4px 8px;margin-right:12px;">
+      <option value="SPY">SPY</option>
+      <option value="QQQ">QQQ</option>
+      <option value="AAPL">AAPL</option>
+      <option value="MSFT">MSFT</option>
+      <option value="TSLA">TSLA</option>
+      <option value="NVDA">NVDA</option>
+    </select>
+    <span class="chip active" data-filter="macro">Macro</span>
+    <span class="chip active" data-filter="news">News</span>
+    <span class="chip active" data-filter="signals">Signals</span>
+    <span class="chip" id="clearPills">Clear</span>
+    <span class="chip" data-indic="vol">Vol</span>
+    <span class="chip" data-indic="rsi">RSI</span>
+    <span class="chip" data-indic="macd">MACD</span>
+    <span class="chip" id="importPine">Import Pine</span>
+    <button type="button" class="btn" id="replayToggle" style="margin-left:12px;">Replay</button>
+    <button type="button" class="btn" id="sentimentToggle" style="margin-left:8px;">X Sentiment</button>
+    <span class="chip" data-tf="1m">1m</span>
+    <span class="chip" data-tf="5m">5m</span>
+    <span class="chip" data-tf="1h">1h</span>
+    <span class="chip" data-tf="1d">1d</span>
+    <span class="chip" data-tf="1wk">1w</span>
+  </div>
+  <div id="chart"></div>
+  <div class="legend">
+    <span><i class="dot blue"></i> Bar</span>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <button class="btn" id="bestStrategyBtn">Best Strategy</button>
+          <span id="bestStrategyHint" style="font-size:12px;color:#9aa4b2"></span>
+        </div>
+
+    <span><i class="dot green"></i> Breakout / NewsBurst</span>
+    <span><i class="dot yellow"></i> MacroShock</span>
+    <span><i class="dot red"></i> TradeEntryIntent</span>
+  </div>
+  <div class="panel" id="status">
+    <div class="kv">WS: <b id="wsState">connecting…</b></div>
+    <div class="kv">Last event: <b id="lastEvt">—</b></div>
+    <div class="kv">RSI: <b id="rsiVal">—</b></div>
+    <div class="kv">MACD: <b id="macdVal">—</b></div>
+  </div>
+
+
+
+  <!-- Replay Controls (hidden until replay mode) -->
+  <div class="replay-controls" id="replayControls" style="display:none;">
+    <button type="button" class="btn" id="replayPlay">▶</button>
+    <button type="button" class="btn" id="replayStep">⏭</button>
+    <div class="replay-scrubber" id="replayScrubber">
+      <div class="thumb" id="replayThumb"></div>
+    </div>
+    <div class="replay-time" id="replayTime">00:00 / 00:00</div>
+  </div>
+
+  <div class="tracks">
+    <div class="track" id="macroTrack">
+      <h4>Macro</h4>
+      <div class="lane" id="macroLane"></div>
+    </div>
+    <div class="track" id="newsTrack">
+      <h4>News</h4>
+      <div class="lane" id="newsLane"></div>
+  <dialog id="pineDlg">
+    <form method="dialog" style="background:#0e1318;color:#e5e7eb;border:1px solid #20252b;border-radius:8px;max-width:780px;width:90vw">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #20252b">
+        <strong>Import Pine (MVP subset)</strong>
+        <button class="btn" value="close">Close</button>
+      </div>
+      <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+        <small>Supported: input.int/float, ta.sma/ema/rsi, ta.crossover/crossunder, strategy.entry/close</small>
+        <textarea id="pineCode" style="width:100%;height:200px;background:#0b0e11;color:#e5e7eb;border:1px solid #243040;border-radius:6px;padding:8px" placeholder="Paste Pine strategy..."></textarea>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn" id="pinePreview">Preview</button>
+          <span id="pineStatus" style="font-size:12px;color:#9aa4b2"></span>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+    </div>
+    <div class="track" id="signalsTrack">
+      <h4>Signals</h4>
+      <div class="lane" id="signalsLane"></div>
+    </div>
+  </div>
+
+  <section id="pineSection" style="padding:16px">
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:980px;margin:0 auto">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Import Pine (MVP subset)</strong>
+        <div>
+          <button type="button" class="btn" id="pineLoad" style="margin-right:8px;">Load</button>
+          <button type="button" class="btn" id="pineSave" style="margin-right:8px;">Save</button>
+          <button type="button" class="btn" id="pineRun">Preview</button>
+        </div>
+      </div>
+      <small>Supported: input.int/float, ta.sma/ema/rsi, ta.crossover/crossunder, strategy.entry/close, bbands, macd, stoch, supertrend, thresholds</small>
+      <textarea id="pineCodeArea" style="width:100%;height:180px;background:#0b0e11;color:#e5e7eb;border:1px solid #243040;border-radius:6px;padding:8px" placeholder="Paste Pine strategy..."></textarea>
+      <div id="pineResult" style="font-size:12px;color:#9aa4b2"></div>
+    </div>
+  </section>
+
+  <!-- Pine Save Dialog -->
+  <dialog id="pineSaveDlg" style="background:#0e1318;color:#e5e7eb;border:1px solid #2b3645;border-radius:8px;padding:20px;width:400px;">
+    <h3 style="margin-top:0;">Save Pine Strategy</h3>
+    <form id="pineSaveForm">
+      <div style="margin-bottom:12px;">
+        <label style="display:block;margin-bottom:4px;font-size:12px;color:#9aa4b2;">Strategy Name</label>
+        <input type="text" id="pineSaveName" required style="width:100%;padding:8px;background:#1a1f25;color:#e5e7eb;border:1px solid #2b3645;border-radius:4px;" placeholder="My Strategy">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block;margin-bottom:4px;font-size:12px;color:#9aa4b2;">Description (optional)</label>
+        <textarea id="pineSaveDesc" rows="3" style="width:100%;padding:8px;background:#1a1f25;color:#e5e7eb;border:1px solid #2b3645;border-radius:4px;" placeholder="Brief description of the strategy..."></textarea>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" class="btn" id="pineSaveCancel">Cancel</button>
+        <button type="submit" class="btn" style="background:#2563eb;border-color:#3b82f6;">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Pine Load Dialog -->
+  <dialog id="pineLoadDlg" style="background:#0e1318;color:#e5e7eb;border:1px solid #2b3645;border-radius:8px;padding:20px;width:500px;">
+    <h3 style="margin-top:0;">Load Pine Strategy</h3>
+    <div id="pineLoadList" style="max-height:300px;overflow-y:auto;margin-bottom:12px;"></div>
+    <div style="display:flex;justify-content:flex-end;">
+      <button type="button" class="btn" id="pineLoadCancel">Cancel</button>
+    </div>
+  </dialog>
+
+  <div class="drawer" id="drawer">
+    <div class="hd">
+      <strong id="drawerTitle">Event</strong>
+      <div>
+        <button class="btn" id="explainToggle" style="display:none;">Explain</button>
+        <button class="btn" id="drawerClose">Close</button>
+      </div>
+    </div>
+    <div class="bd" id="drawerBody"></div>
+  </div>
+
+  <script>
+    const container = document.getElementById('chart');
+    const chart = LightweightCharts.createChart(container, {
+      layout: { background: { color: '#0b0e11' }, textColor: '#e6e6e6' },
+      grid: { vertLines: { color: '#1a1f25' }, horzLines: { color: '#1a1f25' } },
+      timeScale: { timeVisible: true, secondsVisible: true, borderColor: '#20252b' },
+      rightPriceScale: { borderColor: '#20252b' },
+      leftPriceScale: { visible: true, borderColor: '#20252b' },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    });
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#22c55e', downColor: '#ef4444', borderDownColor: '#ef4444', borderUpColor: '#22c55e', wickDownColor: '#ef4444', wickUpColor: '#22c55e'
+    });
+    const volSeries = chart.addHistogramSeries({ color: 'rgba(100, 181, 246, 0.4)', priceFormat: { type: 'volume' }, priceScaleId: 'left' });
+    // Use secondary overlay scale for indicators to avoid distorting price
+    const overlayScale = 'overlay';
+    const rsiSeries = chart.addLineSeries({ color: '#f97316', lineWidth: 1, priceScaleId: overlayScale });
+    // RSI guide bands
+    const rsi30Series = chart.addLineSeries({ color: 'rgba(255,255,255,0.15)', lineWidth: 1, priceScaleId: overlayScale });
+    const rsi70Series = chart.addLineSeries({ color: 'rgba(255,255,255,0.15)', lineWidth: 1, priceScaleId: overlayScale });
+    const macdSeries = chart.addLineSeries({ color: '#a78bfa', lineWidth: 1, priceScaleId: overlayScale });
+    const macdSignalSeries = chart.addLineSeries({ color: '#60a5fa', lineWidth: 1, priceScaleId: overlayScale });
+    const macdHistSeries = chart.addHistogramSeries({ priceScaleId: overlayScale });
+
+    const markers = [];
+
+    function ema(values, period){
+      const k = 2 / (period + 1);
+      let prev;
+      return values.map((v,i) => {
+        if (i===0){ prev = v; return v; }
+        prev = v * k + prev * (1-k);
+        return prev;
+      });
+    }
+    function rsi(closes, period=14){
+      const gains = []; const losses = [];
+      for (let i=1;i<closes.length;i++){
+        const ch = closes[i]-closes[i-1];
+        gains.push(Math.max(0,ch)); losses.push(Math.max(0,-ch));
+      }
+      let avgGain = gains.slice(0, period).reduce((a,b)=>a+b,0)/period;
+      let avgLoss = losses.slice(0, period).reduce((a,b)=>a+b,0)/period;
+      const out = new Array(closes.length).fill(null);
+      out[period] = 100 - (100/(1 + (avgGain/(avgLoss||1e-9))));
+      for (let i=period+1;i<closes.length;i++){
+        avgGain = (avgGain*(period-1) + gains[i-1]) / period;
+        avgLoss = (avgLoss*(period-1) + losses[i-1]) / period;
+        out[i] = 100 - (100/(1 + (avgGain/(avgLoss||1e-9))));
+      }
+      return out;
+    }
+    function macd(closes, fast=12, slow=26, signal=9){
+      const emaFast = ema(closes, fast);
+      const emaSlow = ema(closes, slow);
+      const macdLine = emaFast.map((v,i)=> v - (emaSlow[i]||v));
+      const signalLine = ema(macdLine.map(v=>v||0), signal);
+      const hist = macdLine.map((v,i)=> (v||0) - (signalLine[i]||0));
+      return { macdLine, signalLine, hist };
+    }
+
+    // Symbol management - declare early
+    let currentSymbol = 'SPY';
+    let currentTf = '1m';
+
+
+	    // Utility: resample candles client-side if server returns base 1m data
+	    function resampleCandles(rows, interval){
+	      const secMap = { '1m':60, '5m':300, '15m':900, '30m':1800, '1h':3600, '1d':86400, '1wk':604800 };
+	      const bucket = secMap[interval] || 60;
+	      if (!rows || rows.length === 0) return rows;
+	      // quick check: if median step >= bucket, assume already correct timeframe
+	      if (rows.length > 2){
+	        const steps = [];
+	        for (let i=1;i<rows.length;i++){ steps.push(rows[i].time - rows[i-1].time); }
+	        steps.sort((a,b)=>a-b);
+	        const median = steps[Math.floor(steps.length/2)] || 0;
+	        if (median >= bucket) return rows; // already at or above desired granularity
+	      }
+	      const out = [];
+	      let cur = null, curBucket = null;
+	      for (const k of rows){
+	        const b = Math.floor(k.time / bucket) * bucket;
+	        if (curBucket === null || b !== curBucket){
+	          if (cur) out.push(cur);
+	          curBucket = b;
+	          cur = { time: b, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume };
+	        } else {
+	          cur.high = Math.max(cur.high, k.high);
+	          cur.low = Math.min(cur.low, k.low);
+	          cur.close = k.close;
+	          cur.volume = (cur.volume||0) + (k.volume||0);
+	        }
+	      }
+	      if (cur) out.push(cur);
+	      return out;
+	    }
+
+
+
+	    // Update title price/change like Yahoo header
+	    async function refreshTitleQuote(){
+	      try{
+	        const res = await fetch('/symbols');
+	        const list = await res.json();
+	        const item = list.find(x=>x.symbol===currentSymbol);
+	        if (item){
+	          document.getElementById('titleSymbol').textContent = item.symbol;
+	          document.getElementById('titlePrice').textContent = `$${Number(item.price||0).toFixed(2)}`;
+	          const ch = Number(item.change||0);
+	          const pct = Number(item.changePercent||0);
+	          const changeEl = document.getElementById('titleChange');
+	          changeEl.textContent = `${ch>0?'+':''}${ch.toFixed(2)} (${pct>0?'+':''}${(pct*100).toFixed(2)}%)`;
+	          changeEl.style.background = ch>=0 ? '#11331d' : '#3a1212';
+	          changeEl.style.color = ch>=0 ? '#22c55e' : '#ef4444';
+	        }
+	        // also refresh side rails
+	        renderMarketSummary(list);
+	        renderWatchlist(list);
+	      }catch(e){ /* ignore */ }
+	    }
+	    setInterval(refreshTitleQuote, 60000);
+	    refreshTitleQuote();
+
+	    function renderMarketSummary(list){
+	      const el = document.getElementById('marketSummary'); if(!el) return;
+	      el.innerHTML = '';
+	      (list||[]).slice(0,6).forEach(it=>{
+	        const green = Number(it.change||0) >= 0;
+	        const node = document.createElement('div');
+	        node.style.cssText = 'padding:8px;border:1px solid #243040;border-radius:8px;background:#0b0e11;display:flex;justify-content:space-between;gap:8px';
+	        node.innerHTML = `<span style="color:#9aa4b2">${it.symbol}</span><span style="color:${green?'#22c55e':'#ef4444'}">$${Number(it.price||0).toFixed(2)}</span>`;
+	        el.appendChild(node);
+	      });
+	    }
+
+	    function renderWatchlist(list){
+	      const el = document.getElementById('watchlist'); if(!el) return;
+	      el.innerHTML = '';
+	      (list||[]).forEach(it=>{
+	        let pct = Number(it.changePercent);
+	        if (!isFinite(pct) || pct === 0){
+	          const price = Number(it.price||0), ch = Number(it.change||0);
+	          const prev = price - ch; // approximate previous close
+	          pct = prev ? (ch / prev) : 0;
+	        }
+	        const green = pct > 0 || Number(it.change||0) > 0;
+	        const row = document.createElement('div');
+	        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px;border:1px solid #243040;border-radius:8px;background:#0b0e11';
+	        const pctText = `${pct>0?'+':''}${(pct*100).toFixed(2)}%`;
+	        row.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><strong>${it.symbol}</strong><small style="color:#9aa4b2">Vol ${it.volume||0}</small></div><div><span style="margin-right:6px">$${Number(it.price||0).toFixed(2)}</span><span style="color:${green?'#22c55e':'#ef4444'}">${green?'▲':'▼'} ${pctText}</span></div>`;
+	        row.addEventListener('click', ()=> switchSymbol(it.symbol));
+	        el.appendChild(row);
+	      });
+	    }
+
+	    const ql = document.getElementById('quoteLookup');
+	    if (ql){
+	      ql.addEventListener('keydown', (e)=>{
+	        if (e.key==='Enter' && ql.value.trim()){
+	          const val = ql.value.trim().toUpperCase();
+	          switchSymbol(val);
+	          ql.blur();
+	        }
+	      });
+	    }
+
+    fetch(`/candles?symbol=${currentSymbol}&interval=${currentTf}`).then(r => r.json()).then(rows => {
+      const data = resampleCandles(rows, currentTf);
+  candleSeries.setData(data.map(k => ({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close })));
+      const closes = data.map(k=>k.close);
+      const times = data.map(k=>k.time);
+      // indicators
+      volSeries.setData(data.map(k=>({ time:k.time, value:k.volume })));
+      const rsiVals = rsi(closes,14);
+      const rsiData = rsiVals.map((v,i)=> v==null?null:{ time: times[i], value: v }).filter(Boolean);
+      rsiSeries.setData(rsiData);
+      // RSI guide bands
+      rsi30Series.setData(times.map(t=>({ time:t, value:30 })));
+      rsi70Series.setData(times.map(t=>({ time:t, value:70 })));
+
+
+	    // Left nav actions (in this MVP they scroll within the page or toggle modules)
+	    const leftNav = document.getElementById('leftNavMenu');
+	    if (leftNav){
+	      leftNav.querySelectorAll('span[data-action]').forEach(item => {
+	        item.addEventListener('click', () => {
+	          const act = item.getAttribute('data-action');
+	          // Simple active styling
+	          leftNav.querySelectorAll('span[data-action]').forEach(x=> x.style.background='');
+	          item.style.background = '#141a20'; item.style.color = '#e5e7eb';
+	          // Behavior per action
+	          if (act === 'summary') {
+	            window.scrollTo({ top: 0, behavior: 'smooth' });
+	          } else if (act === 'statistics') {
+	            // Toggle RSI/MACD as a proxy for statistics
+	            indicState.rsi = true; indicState.macd = true; persistIndic(); syncIndic();
+	            document.getElementById('chart').scrollIntoView({ behavior:'smooth' });
+	          } else if (act === 'financials') {
+	            // Focus right rail watchlist/summary
+	            document.getElementById('marketSummary')?.scrollIntoView({ behavior:'smooth', block:'center' });
+	          } else if (act === 'analysis') {
+	            // Open Pine section area for now
+	            document.getElementById('pineSection')?.scrollIntoView({ behavior:'smooth' });
+	          } else if (act === 'holdings') {
+	            // Show news lane as proxy for holdings insights
+	            document.getElementById('newsTrack')?.scrollIntoView({ behavior:'smooth' });
+	          }
+	        });
+	      });
+	    }
+
+	    function pushRecentNews(items){
+	      const el = document.getElementById('recentNews'); if (!el) return;
+	      for (const n of items){
+	        const row = document.createElement('div');
+	        row.style.cssText = 'border:1px solid #243040;border-radius:8px;padding:8px;background:#0b0e11;display:flex;gap:8px;align-items:flex-start;cursor:pointer';
+	        const senti = Number(n.sentiment||0);
+	        const badge = document.createElement('span');
+	        badge.textContent = senti>=0 ? '▲' : '▼';
+	        badge.style.cssText = `font-size:12px;color:${senti>=0?'#22c55e':'#ef4444'};`;
+	        const col = document.createElement('div');
+	        const h = document.createElement('div'); h.innerText = n.title || n.headline || '(untitled)'; h.style.fontSize = '12px';
+	        const meta = document.createElement('small'); meta.style.color = '#9aa4b2'; meta.textContent = `${n.symbols?.[0]||n.symbol||''} • ${new Date((n.published_ts||n.ts||Date.now()/1000)*1000).toLocaleTimeString()}`;
+	        col.appendChild(h); col.appendChild(meta);
+	        row.appendChild(badge); row.appendChild(col);
+	        row.addEventListener('click', ()=>{
+	          const sym = n.symbols?.[0] || n.symbol;
+	          if (sym){ switchSymbol(sym); }
+	        });
+	        el.prepend(row);
+	        while (el.children.length > 8) el.removeChild(el.lastChild);
+	      }
+	    }
+
+      const m = macd(closes);
+      const macdData = m.macdLine.map((v,i)=>({ time: times[i], value: v||0 }));
+      const macdSigData = m.signalLine.map((v,i)=>({ time: times[i], value: v||0 }));
+      const macdHistData = m.hist.map((v,i)=>({ time: times[i], value: Math.abs(v||0), color: (v||0) >= 0 ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)' }));
+      macdSeries.setData(macdData);
+      macdSignalSeries.setData(macdSigData);
+      macdHistSeries.setData(macdHistData);
+      window._indicCache = { closes, times, rsiVals, rsiData, macd: m, macdData, macdSigData, macdHistData };
+      macdSignalSeries.setData(m.signalLine.map((v,i)=>({ time: times[i], value: v||0 })));
+      macdHistSeries.setData(m.hist.map((v,i)=>({ time: times[i], value: Math.abs(v||0), color: (v||0) >= 0 ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)' })));
+    });
+
+    function addMarker(time, position, color, shape, text, id) {
+      const marker = { time, position, color, shape, text, id };
+      markers.push(marker);
+      candleSeries.setMarkers(markers);
+      console.log(`Marker added: ${text} at ${time}, total markers: ${markers.length}`);
+    }
+
+    const wsState = document.getElementById('wsState');
+
+    // Symbol selector (currentSymbol already declared above)
+    const symbolSelector = document.getElementById('symbolSelector');
+    const sentimentToggle = document.getElementById('sentimentToggle');
+
+    // Sentiment visualization
+    let sentimentSeries = null;
+    let sentimentVisible = false;
+
+
+	    // Timeframe toggles
+	    document.querySelectorAll('.chip[data-tf]').forEach(tfChip => {
+	      tfChip.addEventListener('click', async () => {
+	        const tf = tfChip.getAttribute('data-tf');
+	        if (!tf || tf === currentTf) return;
+	        currentTf = tf;
+	        // Visual active state
+	        document.querySelectorAll('.chip[data-tf]').forEach(c=>c.classList.remove('active'));
+	        tfChip.classList.add('active');
+	        // Reload data for current symbol and timeframe
+	        try{
+	          const res = await fetch(`/candles?symbol=${currentSymbol}&interval=${currentTf}`);
+	          let rows = await res.json();
+	          const data = resampleCandles(rows, currentTf);
+	          candleSeries.setData(data);
+	          // Recompute indicators
+	          const closes = data.map(k => k.close);
+	          const times = data.map(k => k.time);
+	          volSeries.setData(data.map(k=>({ time:k.time, value:k.volume })));
+	          const rsiVals = rsi(closes,14);
+	          rsiSeries.setData(rsiVals.map((v,i)=> v==null?null:{ time: times[i], value: v }).filter(Boolean));
+	          rsi30Series.setData(times.map(t=>({ time:t, value:30 })));
+	          rsi70Series.setData(times.map(t=>({ time:t, value:70 })));
+	          const m = macd(closes);
+	          macdSeries.setData(m.macdLine.map((v,i)=>({ time: times[i], value: v||0 })));
+	          macdSignalSeries.setData(m.signalLine.map((v,i)=>({ time: times[i], value: v||0 })));
+	          macdHistSeries.setData(m.hist.map((v,i)=>({ time: times[i], value: Math.abs(v||0), color: (v||0) >= 0 ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)' })));
+	          window._indicCache = { closes, times, rsiVals, macd: m };
+	        }catch(e){ console.error('Failed to change timeframe', e); }
+	      });
+	    });
+
+    async function switchSymbol(newSymbol) {
+      if (newSymbol === currentSymbol) return;
+
+      console.log(`Switching from ${currentSymbol} to ${newSymbol}`);
+      currentSymbol = newSymbol;
+
+      // Clear current chart data
+      markers.length = 0;
+      candleSeries.setMarkers([]);
+
+      // Clear event tracks
+      document.getElementById('macroLane').innerHTML = '';
+      document.getElementById('newsLane').innerHTML = '';
+      document.getElementById('signalsLane').innerHTML = '';
+
+      // Load new symbol data
+      try {
+        const res = await fetch(`/candles?symbol=${newSymbol}&interval=${currentTf}`);
+        let rows = await res.json();
+        const data = resampleCandles(rows, currentTf);
+        candleSeries.setData(data);
+        console.log(`Loaded ${data.length} candles for ${newSymbol}`);
+
+        // Reload sentiment data if visible
+        if (sentimentVisible) {
+          await loadSentimentData();
+        }
+
+	        // Update RSI/MACD using new data
+	        const closes = data.map(k => k.close);
+	        const times = data.map(k => k.time);
+	        const rsiVals = rsi(closes,14);
+	        rsiSeries.setData(rsiVals.map((v,i)=> v==null?null:{ time: times[i], value: v }).filter(Boolean));
+	        rsi30Series.setData(times.map(t=>({ time:t, value:30 })));
+	        rsi70Series.setData(times.map(t=>({ time:t, value:70 })));
+	        const m = macd(closes);
+	        macdSeries.setData(m.macdLine.map((v,i)=>({ time: times[i], value: v||0 })));
+	        macdSignalSeries.setData(m.signalLine.map((v,i)=>({ time: times[i], value: v||0 })));
+	        macdHistSeries.setData(m.hist.map((v,i)=>({ time: times[i], value: Math.abs(v||0), color: (v||0) >= 0 ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)' })));
+
+	        // Cache for incremental updates
+	        window._indicCache = { closes, times, rsiVals, macd: m };
+
+	        // Update header & rails now that symbol changed
+	        document.getElementById('titleSymbol').textContent = newSymbol;
+	        refreshTitleQuote();
+
+      } catch (err) {
+        console.error('Failed to load symbol data:', err);
+      }
+    }
+
+    symbolSelector.addEventListener('change', (e) => {
+      switchSymbol(e.target.value);
+    });
+
+    // Sentiment toggle functionality
+    sentimentToggle.addEventListener('click', async () => {
+      sentimentVisible = !sentimentVisible;
+
+      if (sentimentVisible) {
+        await loadSentimentData();
+        sentimentToggle.textContent = 'Hide Sentiment';
+        sentimentToggle.style.backgroundColor = '#10b981';
+      } else {
+        if (sentimentSeries) {
+          chart.removeSeries(sentimentSeries);
+          sentimentSeries = null;
+        }
+        sentimentToggle.textContent = 'X Sentiment';
+        sentimentToggle.style.backgroundColor = '';
+      }
+    });
+
+    async function loadSentimentData() {
+      try {
+        const response = await fetch(`/sentiment/${currentSymbol}`);
+        const data = await response.json();
+
+        if (data.sentiment_scores && data.sentiment_scores.length > 0) {
+          // Create sentiment line series
+          if (!sentimentSeries) {
+            sentimentSeries = chart.addLineSeries({
+              color: '#8b5cf6',
+              lineWidth: 2,
+              priceScaleId: 'sentiment',
+              title: 'X Sentiment'
+            });
+
+            // Create separate price scale for sentiment
+            chart.priceScale('sentiment').applyOptions({
+              scaleMargins: { top: 0.8, bottom: 0.02 },
+              borderVisible: false,
+            });
+          }
+
+          // Convert sentiment data to chart format
+          const sentimentData = data.sentiment_scores.map(item => ({
+            time: item.timestamp,
+            value: item.score
+          }));
+
+          sentimentSeries.setData(sentimentData);
+          console.log(`📊 Loaded ${sentimentData.length} sentiment points for ${currentSymbol}`);
+        } else {
+          console.log(`⚠️ No sentiment data available for ${currentSymbol}`);
+        }
+      } catch (err) {
+        console.error('Failed to load sentiment data:', err);
+      }
+    }
+    const lastEvt = document.getElementById('lastEvt');
+
+    // Tracks & Drawer state
+    const macroLane = document.getElementById('macroLane');
+    const newsLane = document.getElementById('newsLane');
+    const signalsLane = document.getElementById('signalsLane');
+    const drawer = document.getElementById('drawer');
+    const drawerTitle = document.getElementById('drawerTitle');
+    const drawerBody = document.getElementById('drawerBody');
+    const drawerClose = document.getElementById('drawerClose');
+    const explainToggle = document.getElementById('explainToggle');
+    drawerClose.onclick = () => drawer.classList.remove('open');
+
+    // Explain toggle functionality
+    let currentEventForExplain = null;
+
+    explainToggle.onclick = async () => {
+      const explainDiv = drawerBody.querySelector('.explain');
+      if (explainDiv && explainDiv.classList.contains('show')) {
+        // Hide existing explanation
+        explainDiv.classList.remove('show');
+        explainToggle.classList.remove('active');
+        explainToggle.textContent = 'Explain';
+      } else {
+        // Generate new explanation
+        if (currentEventForExplain) {
+          explainToggle.textContent = 'Loading...';
+          explainToggle.disabled = true;
+
+          try {
+            const response = await fetch('/events/explain', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(currentEventForExplain)
+            });
+
+            const result = await response.json();
+
+            // Add or update explanation div
+            let explainDiv = drawerBody.querySelector('.explain');
+            if (!explainDiv) {
+              explainDiv = document.createElement('div');
+              explainDiv.className = 'explain';
+              drawerBody.appendChild(explainDiv);
+            }
+
+            explainDiv.innerHTML = generateEventExplanationHTML(result.explanation);
+            explainDiv.classList.add('show');
+            explainToggle.classList.add('active');
+            explainToggle.textContent = 'Hide Explain';
+
+          } catch (err) {
+            console.error('Failed to get explanation:', err);
+            alert('Failed to generate explanation');
+          } finally {
+            explainToggle.disabled = false;
+          }
+        }
+      }
+    };
+
+    function generateEventExplanationHTML(explanation) {
+      return `
+        <h6>${explanation.title}</h6>
+        <p><strong>Summary:</strong> ${explanation.summary}</p>
+
+        <div class="metric">
+          <strong>Details:</strong>
+          ${explanation.details.map(detail => `<p>• ${detail}</p>`).join('')}
+        </div>
+
+        <div class="assessment">
+          <strong>Analysis:</strong>
+          <p>${explanation.reasoning}</p>
+
+          <p><strong>Confidence:</strong> ${explanation.confidence}</p>
+          <p><strong>Suggested Action:</strong> ${explanation.action_suggestion}</p>
+        </div>
+      `;
+    }
+
+    // Generate performance explanation
+    function generateExplanation(result) {
+      const sharpe = Number(result.sharpe) || 0;
+      const totalRet = Number(result.total_return) || 0;
+      const maxDD = Number(result.max_drawdown) || 0;
+      const trades = Array.isArray(result.trades) ? result.trades.length : 0;
+
+      const sharpeAssessment = sharpe > 2 ? 'Excellent' : sharpe > 1 ? 'Good' : sharpe > 0 ? 'Fair' : 'Poor';
+      const returnAssessment = totalRet > 0.05 ? 'Strong gains' : totalRet > 0 ? 'Small gains' : totalRet > -0.02 ? 'Small losses' : 'Significant losses';
+      const ddAssessment = Math.abs(maxDD) < 0.02 ? 'Low risk' : Math.abs(maxDD) < 0.05 ? 'Moderate risk' : 'High risk';
+      const tradesAssessment = trades < 5 ? 'Few trades' : trades < 20 ? 'Moderate activity' : 'Active strategy';
+
+      const overallAssessment = sharpe > 1 && totalRet > 0 ? '✅ Good Strategy' :
+                               sharpe > 0 && totalRet > -0.01 ? '⚠️ Marginal Strategy' : '❌ Poor Strategy';
+
+      return `
+        <div class="explain">
+          <h6>Performance Metrics Explained</h6>
+          <div class="metric">
+            <strong>Sharpe Ratio: ${sharpe.toFixed(2)}</strong>
+            <p><strong>What it is:</strong> Risk-adjusted return (return per unit of risk)</p>
+            <p><strong>Scale:</strong> -3 to +3, with >1.0 good, >2.0 excellent</p>
+            <p><strong>Your result:</strong> ${sharpeAssessment} - ${sharpe > 0 ? 'earning' : 'losing'} ${Math.abs(sharpe).toFixed(2)} units of return per unit of risk</p>
+          </div>
+          <div class="metric">
+            <strong>Total Return: ${(totalRet*100).toFixed(1)}%</strong>
+            <p><strong>What it is:</strong> Overall profit/loss from start to finish</p>
+            <p><strong>Your result:</strong> ${returnAssessment} - ${totalRet >= 0 ? 'profit' : 'loss'} of ${Math.abs(totalRet*100).toFixed(1)}%</p>
+            <p><strong>Translation:</strong> $10,000 → $${(10000 * (1 + totalRet)).toFixed(0)}</p>
+          </div>
+          <div class="metric">
+            <strong>Max Drawdown: ${(maxDD*100).toFixed(1)}%</strong>
+            <p><strong>What it is:</strong> Largest peak-to-trough loss during the run</p>
+            <p><strong>Your result:</strong> ${ddAssessment} - worst losing streak was ${Math.abs(maxDD*100).toFixed(1)}%</p>
+            <p><strong>Translation:</strong> At worst, you were down $${Math.abs(maxDD*100).toFixed(0)} on a $10,000 account</p>
+          </div>
+          <div class="metric">
+            <strong>Trades: ${trades}</strong>
+            <p><strong>What it is:</strong> Total buy/sell transactions</p>
+            <p><strong>Your result:</strong> ${tradesAssessment} - ${trades < 10 ? 'may need more data' : 'good sample size'}</p>
+          </div>
+          <div class="assessment">
+            <strong>${overallAssessment}</strong>
+            <p>${sharpe <= 0 && totalRet < 0 ? 'Strategy is losing money with poor risk management. Try different parameters or strategies.' :
+                 sharpe > 0 && totalRet > 0 ? 'Strategy shows promise. Consider optimizing parameters or adding filters.' :
+                 'Mixed results. Strategy may work in specific market conditions.'}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    // Pine Save/Load functionality
+    const pineSaveDlg = document.getElementById('pineSaveDlg');
+    const pineLoadDlg = document.getElementById('pineLoadDlg');
+    const pineSaveForm = document.getElementById('pineSaveForm');
+    const pineCodeArea = document.getElementById('pineCodeArea');
+
+    document.getElementById('pineSave').onclick = () => {
+      const code = pineCodeArea.value.trim();
+      if (!code) {
+        alert('Please enter a Pine strategy first');
+        return;
+      }
+      // Extract strategy name from code if available
+      const nameMatch = code.match(/strategy\s*\(\s*title\s*=\s*["']([^"']+)["']/);
+      if (nameMatch) {
+        document.getElementById('pineSaveName').value = nameMatch[1];
+      }
+      pineSaveDlg.showModal();
+    };
+
+    document.getElementById('pineSaveCancel').onclick = () => pineSaveDlg.close();
+
+    pineSaveForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('pineSaveName').value;
+      const description = document.getElementById('pineSaveDesc').value;
+      const code = pineCodeArea.value;
+
+      try {
+        const res = await fetch('/strategy/pine/save', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            name,
+            code,
+            description,
+            parameters: {}, // TODO: extract from code
+            user_id: 'anonymous' // TODO: get from auth
+          })
+        });
+
+        const result = await res.json();
+        if (res.ok) {
+          alert(`Strategy "${name}" saved successfully!`);
+          pineSaveDlg.close();
+        } else {
+          alert(`Error: ${result.error}`);
+        }
+      } catch (err) {
+        alert('Failed to save strategy');
+      }
+    };
+
+    document.getElementById('pineLoad').onclick = async () => {
+      try {
+        const res = await fetch('/strategy/pine/list?user_id=anonymous');
+        const data = await res.json();
+
+        const listEl = document.getElementById('pineLoadList');
+        if (data.strategies && data.strategies.length > 0) {
+          listEl.innerHTML = data.strategies.map(s => `
+            <div style="border:1px solid #2b3645;border-radius:4px;padding:12px;margin-bottom:8px;cursor:pointer;" onclick="loadStrategy('${s.id}', '${s.name}', \`${s.code.replace(/`/g, '\\`')}\`)">
+              <div style="font-weight:bold;margin-bottom:4px;">${s.name}</div>
+              <div style="font-size:11px;color:#9aa4b2;">${s.description || 'No description'}</div>
+              <div style="font-size:10px;color:#6b7280;margin-top:4px;">Created: ${new Date(s.created_at).toLocaleDateString()}</div>
+            </div>
+          `).join('');
+        } else {
+          listEl.innerHTML = '<div style="text-align:center;color:#9aa4b2;padding:20px;">No saved strategies found</div>';
+        }
+
+        pineLoadDlg.showModal();
+      } catch (err) {
+        alert('Failed to load strategies');
+      }
+    };
+
+    document.getElementById('pineLoadCancel').onclick = () => pineLoadDlg.close();
+
+    window.loadStrategy = (id, name, code) => {
+      pineCodeArea.value = code;
+      pineLoadDlg.close();
+      pineResult.textContent = `Loaded: ${name}`;
+    };
+
+    // Replay functionality
+    let replayEvents = [];
+    let replayIndex = 0;
+    let replayPlaying = false;
+    let replayInterval = null;
+
+    const replayControls = document.getElementById('replayControls');
+    const replayPlay = document.getElementById('replayPlay');
+    const replayStep = document.getElementById('replayStep');
+    const replayToggle = document.getElementById('replayToggle');
+    const replayScrubber = document.getElementById('replayScrubber');
+    const replayThumb = document.getElementById('replayThumb');
+    const replayTime = document.getElementById('replayTime');
+
+    function formatTime(ts) {
+      const date = new Date(ts * 1000);
+      return date.toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute: '2-digit'});
+    }
+
+    function updateReplayUI() {
+      if (replayEvents.length === 0) return;
+
+      const progress = replayEvents.length > 1 ? replayIndex / (replayEvents.length - 1) : 0;
+      replayThumb.style.left = `${progress * 100}%`;
+
+      const currentTime = replayEvents[replayIndex]?.ts || 0;
+      const endTime = replayEvents[replayEvents.length - 1]?.ts || 0;
+      replayTime.textContent = `${formatTime(currentTime)} / ${formatTime(endTime)}`;
+    }
+
+    function playNextEvent() {
+      if (replayIndex >= replayEvents.length) {
+        console.log('Replay finished');
+        stopReplay();
+        return;
+      }
+
+      const evt = replayEvents[replayIndex];
+      console.log(`Playing event ${replayIndex + 1}/${replayEvents.length}: ${evt.type} at ${formatTime(evt.ts)}`);
+
+      // Add marker to chart AND process through event tracks
+      if (evt.type !== 'Bar') {
+        const color = evt.type === 'TradeEntryIntent' ? '#ef4444' :
+                     evt.type === 'MacroShock' ? '#f59e0b' : '#22c55e';
+        addMarker(evt.ts, 'belowBar', color, 'circle', `${evt.type}: ${evt.key}`, `replay-${evt.ts}`);
+
+        // Also add to event tracks (pills)
+        handleEvent(evt);
+
+        console.log(`Added marker and track pill for ${evt.type} at ${evt.ts}`);
+      }
+
+      replayIndex++;
+      updateReplayUI();
+    }
+
+    function startReplay() {
+      if (replayEvents.length === 0) {
+        console.log('No events to replay');
+        return;
+      }
+      console.log(`Starting replay of ${replayEvents.length} events from index ${replayIndex}`);
+      replayPlaying = true;
+      replayPlay.textContent = '⏸';
+      replayInterval = setInterval(playNextEvent, 500); // 500ms between events
+    }
+
+    function stopReplay() {
+      console.log('Stopping replay');
+      replayPlaying = false;
+      replayPlay.textContent = '▶';
+      if (replayInterval) {
+        clearInterval(replayInterval);
+        replayInterval = null;
+      }
+    }
+
+    replayToggle.onclick = async () => {
+      if (replayControls.style.display === 'none' || replayControls.style.display === '') {
+        // Enter replay mode
+        try {
+          console.log('Entering replay mode...');
+
+          // Disconnect live WebSocket
+          if (wsConnection && wsConnection.close) {
+            wsConnection.close();
+            wsState.textContent = 'replay mode';
+          }
+
+          const now = Math.floor(Date.now() / 1000);
+          const oneHourAgo = now - 3600;
+          console.log(`Fetching events from ${oneHourAgo} to ${now}`);
+
+          const res = await fetch(`/events/replay?since=${oneHourAgo}&until=${now}`);
+          console.log('Response status:', res.status);
+
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          }
+
+          const data = await res.json();
+          console.log('Received data:', data);
+
+          replayEvents = data.events || [];
+          replayIndex = 0;
+
+          // Clear existing markers and stop live updates
+          markers.length = 0; // Clear markers array
+          if (typeof candleSeries !== 'undefined' && candleSeries.setMarkers) {
+            candleSeries.setMarkers([]);
+          }
+
+          replayControls.style.display = 'flex';
+          replayToggle.textContent = 'Exit Replay';
+          updateReplayUI();
+
+          console.log(`✅ Loaded ${replayEvents.length} events for replay`);
+        } catch (err) {
+          console.error('Replay error:', err);
+          alert(`Failed to load replay data: ${err.message}`);
+        }
+      } else {
+        // Exit replay mode
+        console.log('Exiting replay mode...');
+        stopReplay();
+        replayControls.style.display = 'none';
+        replayToggle.textContent = 'Replay';
+
+        // Clear replay markers
+        markers.length = 0;
+        if (typeof candleSeries !== 'undefined' && candleSeries.setMarkers) {
+          candleSeries.setMarkers([]);
+        }
+
+        // Reconnect live WebSocket
+        if (wsConnection && wsConnection.reconnect) {
+          wsConnection.reconnect();
+        }
+      }
+    };
+
+    replayPlay.onclick = () => {
+      if (replayPlaying) {
+        stopReplay();
+      } else {
+        startReplay();
+      }
+    };
+
+    replayStep.onclick = () => {
+      stopReplay();
+      playNextEvent();
+    };
+
+    replayScrubber.onclick = (e) => {
+      if (replayEvents.length === 0) return;
+      const rect = replayScrubber.getBoundingClientRect();
+      const progress = (e.clientX - rect.left) / rect.width;
+      replayIndex = Math.floor(progress * replayEvents.length);
+      replayIndex = Math.max(0, Math.min(replayIndex, replayEvents.length - 1));
+
+      // Clear and replay up to this point
+      markers.length = 0;
+      for (let i = 0; i <= replayIndex; i++) {
+        const evt = replayEvents[i];
+        if (evt.type !== 'Bar') {
+          const color = evt.type === 'TradeEntryIntent' ? '#ef4444' :
+                       evt.type === 'MacroShock' ? '#f59e0b' : '#22c55e';
+          addMarker(evt.ts, 'belowBar', color, 'circle', `${evt.type}: ${evt.key}`, `replay-${evt.ts}`);
+        }
+      }
+
+      updateReplayUI();
+    };
+
+    // Reconnect/backfill state
+    let lastSeenTs = Number(sessionStorage.getItem('evt:lastTs') || 0);
+    function rememberTs(ts){ if (ts>0){ lastSeenTs = Math.max(lastSeenTs, ts); sessionStorage.setItem('evt:lastTs', String(lastSeenTs)); } }
+    function replay(events){
+      for (const evt of events){
+        evt.ts && handleEvent(evt);
+        rememberTs(evt.ts||0);
+      }
+    }
+
+	    async function fetchBackfill(){
+	      try{
+	        const res = await fetch('/events' + (lastSeenTs ? (`?since=${lastSeenTs}`) : ''));
+	        if (res.ok){ const rows = await res.json(); replay(rows); }
+	      }catch(e){}
+	    }
+
+	    async function fetchBackfill(){
+	      try{
+	        const res = await fetch('/events' + (lastSeenTs ? (`?since=${lastSeenTs}`) : ''));
+	        if (res.ok){ const rows = await res.json();
+	          // Seed recent news from backfill
+	          const news = rows.filter(e => e.type === 'NewsItem').map(e => ({ title: e.data?.headline, sentiment: e.data?.sentiment, symbol: e.key, ts: e.ts }));
+	          if (news.length) pushRecentNews(news.slice(-6));
+	          replay(rows);
+	        }
+	      }catch(e){}
+	    }
+
+
+
+    function handleEvent(evt){
+
+
+
+      // Filter events by current symbol (except for macro events which are global)
+      if (evt.key && evt.key !== currentSymbol && evt.type !== 'MacroRelease' && evt.type !== 'MacroShock') {
+        return;
+      }
+
+      lastEvt.textContent = `${evt.type} @ ${new Date(evt.ts * 1000).toLocaleTimeString()}`;
+      rememberTs(evt.ts||0);
+      if (evt.type === 'Bar') {
+        const k = evt.data;
+        candleSeries.update({ time: k.time, open: k.open, high: k.high, low: k.low, close: k.close });
+        // Incremental indicator updates
+        if (window._indicCache){
+          const c = window._indicCache;
+
+	      if (evt.type === 'NewsItem') {
+	        // Right rail: add to Recent News
+	        pushRecentNews([{ title: evt.data?.headline, sentiment: evt.data?.sentiment, symbol: evt.key, ts: evt.ts }]);
+	      }
+
+          c.closes.push(k.close); c.times.push(k.time);
+          const closes = c.closes; const times = c.times;
+          const rsiVals = rsi(closes,14);
+          const last = rsiVals[rsiVals.length-1];
+          if (last != null) rsiSeries.update({ time: times[times.length-1], value: last });
+          rsi30Series.update({ time: times[times.length-1], value: 30 });
+
+	      if (evt.type === 'NewsItem') {
+	        // Right rail: add to Recent News (for paths where _indicCache is not yet set)
+	        pushRecentNews([{ title: evt.data?.headline, sentiment: evt.data?.sentiment, symbol: evt.key, ts: evt.ts }]);
+	      }
+
+          rsi70Series.update({ time: times[times.length-1], value: 70 });
+          const m = macd(closes);
+          const t = times[times.length-1];
+          macdSeries.update({ time: t, value: m.macdLine[m.macdLine.length-1]||0 });
+          macdSignalSeries.update({ time: t, value: m.signalLine[m.signalLine.length-1]||0 });
+          const hv = m.hist[m.hist.length-1]||0;
+          macdHistSeries.update({ time: t, value: Math.abs(hv), color: hv >= 0 ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)' });
+          c.rsiVals = rsiVals; c.macd = m;
+          // Legend labels
+          document.getElementById('rsiVal').textContent = (last!=null? last.toFixed(1): '—');
+          document.getElementById('macdVal').textContent = `${(m.macdLine.at(-1)||0).toFixed(2)} / ${(m.signalLine.at(-1)||0).toFixed(2)}`;
+        }
+        return;
+      }
+      if (evt.type === 'Breakout') {
+        addMarker(evt.ts, 'aboveBar', '#22c55e', 'arrowUp', 'Breakout', evt.data?.price);
+        const node = pill('#22c55e', 'Breakout', evt, '↗'); node.title = 'Technical breakout'; signalsLane.appendChild(node); trimLane(signalsLane);
+      }
+      if (evt.type === 'NewsBurst') {
+        addMarker(evt.ts, 'aboveBar', '#22c55e', 'circle', 'NewsBurst (≥3 pos in 2m)', 'news'+evt.ts);
+        const node = pill('#22c55e', 'NewsBurst', evt, '●'); node.title = 'News burst'; newsLane.appendChild(node); trimLane(newsLane);
+      }
+      if (evt.type === 'MacroShock') {
+        addMarker(evt.ts, 'belowBar', '#eab308', 'square', `MacroShock (CPI ${evt.data.surprise.toFixed(2)})`, 'macro'+evt.ts);
+        const node = pill('#eab308', `MacroShock ${evt.data.surprise.toFixed(2)}`, evt, '■'); node.title = 'Macro surprise'; macroLane.appendChild(node); trimLane(macroLane);
+      }
+      if (evt.type === 'TradeEntryIntent') {
+        addMarker(evt.ts, 'belowBar', '#ef4444', 'arrowUp', 'TradeEntryIntent (macro→breakout)', 'entry'+evt.ts);
+        const node = pill('#ef4444', 'TradeEntryIntent', evt, '★'); node.title = 'Sequence match'; signalsLane.appendChild(node); trimLane(signalsLane);
+      }
+    }
+
+
+    const filters = { macro: true, news: true, signals: true };
+    document.querySelectorAll('.chip[data-filter]').forEach(ch => {
+      ch.addEventListener('click', () => {
+        const k = ch.getAttribute('data-filter');
+        filters[k] = !filters[k];
+        ch.classList.toggle('active', filters[k]);
+        document.getElementById(k + 'Track').style.display = filters[k] ? 'flex' : 'none';
+        saveFilters();
+        // Telemetry
+        fetch('/telemetry', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({cat:'filters', action:k, enabled:filters[k]})}).catch(()=>{});
+      });
+    });
+
+    const MAX_PILLS = 50;
+    function trimLane(lane){
+      while (lane.children.length > MAX_PILLS) lane.removeChild(lane.firstChild);
+    }
+
+    // Telemetry throttling (max ~4 req/sec)
+    const _tele_q = [];
+    let _tele_t = null;
+    function teleEnqueue(payload){ _tele_q.push(payload); _teleSchedule(); }
+    function _teleSchedule(){ if (_tele_t) return; _tele_t = setTimeout(_teleFlush, 250); }
+    function _teleFlush(){
+      const p = _tele_q.shift();
+      if (p){ fetch('/telemetry', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(p)}).catch(()=>{}); }
+      if (_tele_q.length){ _tele_t = setTimeout(_teleFlush, 250); } else { _tele_t = null; }
+    }
+
+    function drawerContent(evt){
+      const ts = new Date(evt.ts * 1000).toLocaleString();
+      let why = '';
+      let evidence = '';
+      if (evt.type === 'Breakout') {
+        const price = evt.data.price ?? evt.data.close;
+        const lb = evt.data.lookback ?? 20;
+        why = `Close > ${lb}-bar high`;
+        evidence = `<div class=\"kv\"><span>Price</span><span>${price?.toFixed ? price.toFixed(2) : price}</span></div>`+
+                   `<div class=\"kv\"><span>Lookback</span><span>${lb}</span></div>`;
+      } else if (evt.type === 'NewsBurst') {
+        const count = evt.data.count ?? 3;
+        const windowSec = evt.data.window_sec ?? 120;
+        why = `≥${count} positive news in ${Math.round(windowSec/60)}m`;
+        evidence = `<div class=\"kv\"><span>Count</span><span>${count}</span></div>`+
+                   `<div class=\"kv\"><span>Window</span><span>${windowSec}s</span></div>`;
+      } else if (evt.type === 'MacroShock') {
+        const a = evt.data.actual ?? 0;
+        const e = evt.data.estimate ?? 0;
+        const s = evt.data.surprise;
+        why = `|surprise| ≥ 0.3 (CPI)`;
+        evidence = `<div class=\"kv\"><span>Actual</span><span>${a.toFixed ? a.toFixed(2) : a}</span></div>`+
+                   `<div class=\"kv\"><span>Estimate</span><span>${e.toFixed ? e.toFixed(2) : e}</span></div>`+
+                   `<div class=\"kv\"><span>Surprise</span><span>${s.toFixed ? s.toFixed(2) : s}</span></div>`;
+      } else if (evt.type === 'TradeEntryIntent') {
+        why = `MacroShock then Breakout within 15m`;
+        evidence = `<div class=\"kv\"><span>Rule</span><span>${evt.data.rule||'macro_then_breakout'}</span></div>`;
+      }
+      return `
+        <div class=\"kv\"><span><b>Type</b></span><span>${evt.type}</span></div>
+        <div class=\"kv\"><span><b>Time</b></span><span>${ts}</span></div>
+        <h5>Why it fired</h5>
+        <div>${why || '—'}</div>
+        <h5>Evidence</h5>
+        ${evidence || '<div>—</div>'}
+      `;
+    }
+
+    function pill(color, label, evt, icon){
+      const el = document.createElement('span');
+      el.className = 'pill';
+      const dot = document.createElement('i'); dot.className = 'dot'; dot.style.background = color;
+      const ic = document.createElement('span'); ic.textContent = icon || '';
+      el.appendChild(dot); el.appendChild(ic); el.appendChild(document.createTextNode(label));
+      el.onclick = () => {
+        drawerTitle.textContent = label;
+        drawerBody.innerHTML = drawerContent(evt);
+
+        // Show Explain button for CEP-generated events
+        const cepEventTypes = ['NewsBurst', 'MacroShock', 'Breakout', 'TradeEntryIntent', 'XSentiment', 'StrongXSentiment', 'SentimentConfirmedBreakout', 'SentimentDivergence'];
+        if (cepEventTypes.includes(evt.type)) {
+          currentEventForExplain = evt;
+          explainToggle.style.display = 'inline-block';
+          explainToggle.textContent = 'Explain';
+          explainToggle.classList.remove('active');
+        } else {
+          explainToggle.style.display = 'none';
+          currentEventForExplain = null;
+        }
+
+        drawer.classList.add('open');
+        teleEnqueue({cat:'pill', action:evt.type, ts:evt.ts});
+      };
+      return el;
+    }
+
+    document.getElementById('clearPills').onclick = () => {
+      [macroLane, newsLane, signalsLane].forEach(l => l.innerHTML='');
+    };
+
+    function saveFilters(){ try{ localStorage.setItem('evt:filters', JSON.stringify(filters)); }catch(e){} }
+    function loadFilters(){ try{ return JSON.parse(localStorage.getItem('evt:filters')) || filters; }catch(e){ return filters; } }
+
+    // Init filters from storage
+    const stored = loadFilters();
+    Object.keys(filters).forEach(k => {
+      filters[k] = !!stored[k];
+      const chip = document.querySelector(`.chip[data-filter="${k}"]`);
+      if (chip) chip.classList.toggle('active', filters[k]);
+      document.getElementById(k + 'Track').style.display = filters[k] ? 'flex' : 'none';
+    });
+
+    // Indicator toggles + persistence
+    const indicState = JSON.parse(localStorage.getItem('evt:indic') || '{"vol":false,"rsi":false,"macd":false}');
+    function persistIndic(){ try{ localStorage.setItem('evt:indic', JSON.stringify(indicState)); }catch(e){} }
+    function syncIndic(){
+      document.querySelectorAll('.chip[data-indic]').forEach(ch => {
+        const k = ch.getAttribute('data-indic');
+        ch.classList.toggle('active', !!indicState[k]);
+      });
+      volSeries.applyOptions({ visible: !!indicState.vol });
+      rsiSeries.applyOptions({ visible: !!indicState.rsi });
+      rsi30Series.applyOptions({ visible: !!indicState.rsi });
+      rsi70Series.applyOptions({ visible: !!indicState.rsi });
+      macdSeries.applyOptions({ visible: !!indicState.macd });
+      macdSignalSeries.applyOptions({ visible: !!indicState.macd });
+      macdHistSeries.applyOptions({ visible: !!indicState.macd });
+    }
+    syncIndic();
+
+    document.querySelectorAll('.chip[data-indic]').forEach(ch => {
+      ch.addEventListener('click', () => {
+        const k = ch.getAttribute('data-indic');
+        indicState[k] = !indicState[k];
+        persistIndic();
+        syncIndic();
+      });
+    });
+
+    let wsConnection = null;
+
+    function connectWS(){
+      let attempts = 0; let ws;
+      let isReplayMode = false;
+
+      function open(){
+        if (isReplayMode) return; // Don't reconnect in replay mode
+        ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+        ws.onopen = () => { wsState.textContent = 'connected'; attempts = 0; fetchBackfill(); };
+        ws.onclose = () => {
+          if (!isReplayMode) {
+            wsState.textContent = 'disconnected';
+            schedule();
+          }
+        };
+        ws.onerror = () => { wsState.textContent = 'error'; ws.close(); };
+        ws.onmessage = (m) => {
+          if (!isReplayMode) {
+            try{ handleEvent(JSON.parse(m.data)); }catch(e){}
+          }
+        };
+      }
+      function schedule(){
+        if (isReplayMode) return;
+        attempts += 1;
+        const backoff = Math.min(5000, 500 * Math.pow(2, Math.min(attempts, 4)));
+        setTimeout(open, backoff);
+      }
+      function fetchBackfill(){
+        if (!isReplayMode) {
+          fetch(`/events?since=${lastSeenTs}`).then(r=>r.json()).then(replay).catch(e=>{});
+        }
+      }
+      open();
+      return {
+        close: () => {
+          isReplayMode = true;
+          if (ws) {
+            ws.close();
+            wsState.textContent = 'replay mode';
+          }
+        },
+        reconnect: () => {
+          isReplayMode = false;
+          open();
+        }
+      };
+    }
+
+    // Pine dialog handlers (guarded for browsers without <dialog>)
+    const pineDlg = document.getElementById('pineDlg');
+    document.getElementById('importPine').onclick = () => {
+      if (pineDlg && typeof pineDlg.showModal === 'function') { pineDlg.showModal(); }
+      else { document.getElementById('pineSection')?.scrollIntoView({behavior:'smooth'}); }
+    };
+    // Pine section handler
+    const pineArea = document.getElementById('pineCodeArea');
+    const pineRunBtn = document.getElementById('pineRun');
+    const pineResult = document.getElementById('pineResult');
+    pineRunBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const code = pineArea.value;
+      pineResult.textContent = 'Running...';
+      try{
+        const res = await fetch('/strategy/pine/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({code})});
+        const text = await res.text();
+        const js = (() => { try { return JSON.parse(text); } catch { return {error:text}; } })();
+        if (!res.ok){ pineResult.textContent = 'Error: '+(js.error||res.status); return; }
+        const r = js.result || {};
+        const sharpe = Number(r.sharpe);
+        const totalRet = Number(r.total_return);
+        const mdd = Number(r.max_drawdown);
+        const fmt = (x, p=2) => Number.isFinite(x) ? x.toFixed(p) : '-';
+        pineResult.textContent = `${r.name || 'Strategy'} | Sharpe ${fmt(sharpe)} | Return ${Number.isFinite(totalRet) ? (totalRet*100).toFixed(1) : '-' }% | Trades ${Array.isArray(r.trades)? r.trades.length : 0}`;
+        (r.trades||[]).forEach(t => {
+          addMarker(t.ts, t.side==='buy'?'belowBar':'aboveBar', t.side==='buy'?'#22c55e':'#ef4444', t.side==='buy'?'arrowUp':'arrowDown', (t.side==='buy'?'Buy':'Sell')+` @ ${t.price.toFixed(2)}`, `${t.side}${t.ts}`);
+        });
+        drawerTitle.textContent = r.name || 'Strategy';
+        drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${fmt(sharpe)}</span></div><div class='kv'><span>Total Return</span><span>${Number.isFinite(totalRet)?(totalRet*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Max DD</span><span>${Number.isFinite(mdd)?(mdd*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Trades</span><span>${Array.isArray(r.trades)? r.trades.length : 0}</span></div>${generateExplanation(r)}`;
+        explainToggle.style.display = 'inline-block';
+        explainToggle.textContent = 'Explain';
+        explainToggle.classList.remove('active');
+
+      // Best Strategy overlay button
+      const bestStrategyBtn = document.getElementById('bestStrategyBtn');
+      const bestStrategyHint = document.getElementById('bestStrategyHint');
+      bestStrategyBtn.addEventListener('click', async ()=>{
+        bestStrategyHint.textContent = 'Selecting...';
+        try{
+          const tf = document.querySelector('.timeframes .chip.active')?.dataset?.tf || '1m';
+          const res = await fetch(`/strategy/best2?symbol=${encodeURIComponent(currentSymbol)}&timeframe=${encodeURIComponent(tf)}`);
+          const text = await res.text();
+          const js = (()=>{try{return JSON.parse(text);}catch{return {error:text};}})();
+          if(!res.ok){ bestStrategyHint.textContent = 'Error'; return; }
+          bestStrategyHint.textContent = `${js.name} | Sharpe ${(js.sharpe||0).toFixed(2)} | ${(Number(js.total_return||0)*100).toFixed(1)}%`;
+          (js.trades||[]).forEach(t => {
+            addMarker(t.ts, t.side==='buy'?'belowBar':'aboveBar', t.side==='buy'?'#22c55e':'#ef4444', t.side==='buy'?'arrowUp':'arrowDown', (t.side==='buy'?'Buy':'Sell')+` @ ${t.price.toFixed(2)}`, `${t.side}${t.ts}`);
+          });
+          drawerTitle.textContent = js.name || 'Best Strategy';
+          const fmt = (x,p=2)=>Number.isFinite(Number(x))?Number(x).toFixed(p):'-';
+          const mdd = Number(js.max_drawdown||0);
+          drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${fmt(js.sharpe)}</span></div><div class='kv'><span>Total Return</span><span>${(Number(js.total_return||0)*100).toFixed(1)}%</span></div><div class='kv'><span>Max DD</span><span>${(mdd*100).toFixed(1)}%</span></div><div class='kv'><span>Trades</span><span>${Array.isArray(js.trades)? js.trades.length : 0}</span></div><p style='margin-top:8px;white-space:pre-line;'>${js.explanation||''}</p>`;
+          drawer.classList.add('open');
+        }catch(e){ bestStrategyHint.textContent = 'Error'; }
+      });
+
+        drawer.classList.add('open');
+
+        // Auto-save results to cloud (if strategy was previously saved)
+        // This would be enhanced with proper strategy tracking
+      }catch(err){ pineResult.textContent = 'Error'; }
+    });
+
+    document.getElementById('pinePreview').onclick = async () => {
+      const code = document.getElementById('pineCode').value;
+      const st = document.getElementById('pineStatus');
+      st.textContent = 'Running...';
+      try{
+        const res = await fetch('/strategy/pine/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({code})});
+        const text = await res.text();
+        const js = (() => { try { return JSON.parse(text); } catch { return {error:text}; } })();
+        if (!res.ok){ st.textContent = 'Error: '+(js.error||res.status); return; }
+        const r = js.result || {};
+        const fmt = (x,p=2)=>Number.isFinite(Number(x))?Number(x).toFixed(p):'-';
+        st.textContent = `${r.name||'Strategy'} | Sharpe ${fmt(r.sharpe)} | Return ${Number.isFinite(Number(r.total_return))?(Number(r.total_return)*100).toFixed(1):'-'}%`;
+        (r.trades||[]).forEach(t => {
+          addMarker(t.ts, t.side==='buy'?'belowBar':'aboveBar', t.side==='buy'?'#22c55e':'#ef4444', t.side==='buy'?'arrowUp':'arrowDown', (t.side==='buy'?'Buy':'Sell')+` @ ${t.price?.toFixed? t.price.toFixed(2): t.price}`, `${t.side}${t.ts}`);
+        });
+        drawerTitle.textContent = r.name || 'Strategy';
+        drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${fmt(r.sharpe)}</span></div><div class='kv'><span>Total Return</span><span>${Number.isFinite(Number(r.total_return))?(Number(r.total_return)*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Max DD</span><span>${Number.isFinite(Number(r.max_drawdown))?(Number(r.max_drawdown)*100).toFixed(1):'-'}%</span></div><div class='kv'><span>Trades</span><span>${Array.isArray(r.trades)? r.trades.length : 0}</span></div>${generateExplanation(r)}`;
+        explainToggle.style.display = 'inline-block';
+        explainToggle.textContent = 'Explain';
+        explainToggle.classList.remove('active');
+        drawer.classList.add('open');
+      }catch(e){ st.textContent = 'Error'; }
+    };
+
+    wsConnection = connectWS();
+
+    new ResizeObserver(entries => {
+      if (!entries.length) return;
+      const { width, height } = entries[0].contentRect;
+      chart.applyOptions({ width, height });
+    }).observe(container);
+  </script>
+
+
+</body>
+</html>
+
+
+
