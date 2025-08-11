@@ -16,3 +16,4 @@ streamlit>=1.28
 pandas-ta>=0.3.14b
 python-dotenv>=1.0.0
 feedparser>=6.0.10
+supabase>=2.0.0

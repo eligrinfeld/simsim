@@ -1,5 +1,8 @@
 from __future__ import annotations
 import asyncio, random, time, uuid, os, json, math, traceback
+import yfinance as yf
+import pandas as pd
+from datetime import datetime, timedelta
 from dataclasses import dataclass, field, asdict
 from typing import Any, Callable, Deque, Dict, List, Optional
 from collections import defaultdict, deque
@@ -9,8 +12,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import strategies as st
-from .supabase import supabase_client
+import strategies as st
+from supabase import supabase_client
 
 # ---------- Event model ----------
 @dataclass
@@ -105,12 +108,12 @@ class CEP:
 # ---------- FastAPI app & live push ----------
 app = FastAPI(title="Event Dashboard")
 # Serve static assets under /static and index at /
-app.mount("/static", StaticFiles(directory="apps/event_dashboard/public"), name="static")
+app.mount("/static", StaticFiles(directory="public"), name="static")
 
 @app.get("/")
 async def index():
     # Serve the SPA index
-    return FileResponse("apps/event_dashboard/public/index.html")
+    return FileResponse("public/index.html")
 
 
 DEFAULT_SYMBOL = "SPY"
@@ -201,7 +204,7 @@ async def best_strategy(symbol: str = DEFAULT_SYMBOL):
         "explanation": expl,
     })
 
-from .pine_adapter import compile_pine
+from pine_adapter import compile_pine
 
 @app.post("/strategy/pine/preview")
 async def pine_preview(payload: Dict[str, Any]):
@@ -452,6 +455,82 @@ def generate_event_explanation(event_type: str, event_data: dict, key: str, ts: 
         }
 
 
+# Live data fetching functions
+async def fetch_live_price_data(symbol: str, period: str = "1d", interval: str = "1m") -> List[Dict[str, Any]]:
+    """Fetch live price data from Yahoo Finance."""
+    try:
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period=period, interval=interval)
+
+        if hist.empty:
+            print(f"⚠️ No data received for {symbol}")
+            return []
+
+        candles = []
+        for timestamp, row in hist.iterrows():
+            candles.append({
+                "time": int(timestamp.timestamp()),
+                "open": float(row['Open']),
+                "high": float(row['High']),
+                "low": float(row['Low']),
+                "close": float(row['Close']),
+                "volume": int(row['Volume'])
+            })
+
+        print(f"✅ Fetched {len(candles)} candles for {symbol}")
+        return candles
+
+    except Exception as e:
+        print(f"❌ Failed to fetch data for {symbol}: {e}")
+        return []
+
+
+async def get_latest_price(symbol: str) -> Dict[str, Any]:
+    """Get the latest price for a symbol."""
+    try:
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+
+        return {
+            "symbol": symbol,
+            "price": info.get('currentPrice', info.get('regularMarketPrice', 0)),
+            "change": info.get('regularMarketChange', 0),
+            "changePercent": info.get('regularMarketChangePercent', 0),
+            "volume": info.get('regularMarketVolume', 0),
+            "timestamp": int(time.time())
+        }
+    except Exception as e:
+        print(f"❌ Failed to get latest price for {symbol}: {e}")
+        return {"symbol": symbol, "price": 0, "change": 0, "changePercent": 0, "volume": 0, "timestamp": int(time.time())}
+
+
+async def initialize_live_data():
+    """Initialize live data for all supported symbols."""
+    print("🔄 Initializing live market data...")
+
+    for symbol in SUPPORTED_SYMBOLS:
+        print(f"Fetching data for {symbol}...")
+        live_candles = await fetch_live_price_data(symbol, period="5d", interval="1m")
+
+        if live_candles:
+            candles[symbol] = live_candles[-2000:]  # Keep last 2000 candles
+            print(f"✅ Loaded {len(candles[symbol])} candles for {symbol}")
+        else:
+            # Fallback to simulated data if live data fails
+            print(f"⚠️ Using simulated data for {symbol}")
+            base_prices = {"SPY": 450.0, "QQQ": 380.0, "AAPL": 180.0, "MSFT": 420.0, "TSLA": 250.0, "NVDA": 900.0}
+            base = base_prices.get(symbol, 100.0)
+            last = base
+            sim_candles = []
+            for i in range(200):
+                k = next_candle(last)
+                last = k["close"]
+                sim_candles.append(k)
+            candles[symbol] = sim_candles
+
+    print("✅ Live data initialization complete")
+
+
 @app.websocket("/ws")
 async def ws(ws: WebSocket):
     await ws.accept()
@@ -480,30 +559,58 @@ def next_candle(prev_close: float) -> Dict[str, Any]:
     return {"time": t, "open": round(o,2), "high": round(h,2), "low": round(l,2), "close": round(c,2), "volume": v}
 
 async def price_loop():
-    # Seed data for all symbols
-    base_prices = {"SPY": 450.0, "QQQ": 380.0, "AAPL": 180.0, "MSFT": 420.0, "TSLA": 250.0, "NVDA": 900.0}
-
-    for symbol in SUPPORTED_SYMBOLS:
-        base = base_prices.get(symbol, 100.0)
-        last = base
-        for _ in range(200):
-            k = next_candle(last); last = k["close"]; candles[symbol].append(k)
+    """Live price update loop - fetches latest prices every 60 seconds."""
+    print("🔄 Starting live price update loop...")
 
     while True:
-        await asyncio.sleep(1.0)
-        # Update all symbols
-        for symbol in SUPPORTED_SYMBOLS:
-            if len(candles[symbol]) > 0:
-                k = next_candle(candles[symbol][-1]["close"])
-                candles[symbol].append(k)
-                await broadcast(Event("Bar", key=symbol, ts=k["time"], data=k))
-                cep.ingest(Bar(symbol, k["open"], k["high"], k["low"], k["close"], k["volume"]))
+        try:
+            # Update prices every 60 seconds (respecting API limits)
+            await asyncio.sleep(60.0)
 
-                # Check for breakouts per symbol
-                if len(candles[symbol]) >= 21:
-                    hh20 = max(c["high"] for c in candles[symbol][-20:])
-                    if k["close"] > hh20:
-                        cep.sink.emit(Event("Breakout", key=symbol, ts=k["time"], data={"price": k["close"], "lookback": 20}))
+            for symbol in SUPPORTED_SYMBOLS:
+                try:
+                    # Get latest price data
+                    latest_data = await get_latest_price(symbol)
+
+                    if latest_data["price"] > 0 and len(candles[symbol]) > 0:
+                        # Create a new candle based on latest price
+                        last_candle = candles[symbol][-1]
+                        current_time = int(time.time())
+
+                        # Create 1-minute candle
+                        new_candle = {
+                            "time": current_time,
+                            "open": last_candle["close"],
+                            "high": max(last_candle["close"], latest_data["price"]),
+                            "low": min(last_candle["close"], latest_data["price"]),
+                            "close": latest_data["price"],
+                            "volume": latest_data.get("volume", 1000)
+                        }
+
+                        candles[symbol].append(new_candle)
+
+                        # Keep only last 2000 candles
+                        if len(candles[symbol]) > 2000:
+                            candles[symbol] = candles[symbol][-2000:]
+
+                        # Broadcast and process through CEP
+                        await broadcast(Event("Bar", key=symbol, ts=new_candle["time"], data=new_candle))
+                        cep.ingest(Bar(symbol, new_candle["open"], new_candle["high"], new_candle["low"], new_candle["close"], new_candle["volume"]))
+
+                        # Check for breakouts per symbol
+                        if len(candles[symbol]) >= 21:
+                            hh20 = max(c["high"] for c in candles[symbol][-20:])
+                            if new_candle["close"] > hh20:
+                                cep.sink.emit(Event("Breakout", key=symbol, ts=new_candle["time"], data={"price": new_candle["close"], "lookback": 20}))
+
+                        print(f"📊 Updated {symbol}: ${latest_data['price']:.2f} ({latest_data.get('changePercent', 0):.2f}%)")
+
+                except Exception as e:
+                    print(f"❌ Failed to update {symbol}: {e}")
+
+        except Exception as e:
+            print(f"❌ Price loop error: {e}")
+            await asyncio.sleep(30)  # Wait before retrying
 
 async def news_loop():
     headlines_pos = ["Analyst upgrade", "Buyback announced", "Strong sector flows"]
@@ -561,8 +668,18 @@ async def telemetry(events: Dict[str, Any]):
 
 @app.on_event("startup")
 async def on_startup():
+    print("🚀 Starting CEP Event Dashboard...")
     install_rules()
+    print("✅ CEP rules installed")
+
+    # Initialize live data in background to avoid blocking startup
+    asyncio.create_task(initialize_live_data())
     asyncio.create_task(price_loop())
     asyncio.create_task(news_loop())
     asyncio.create_task(macro_loop())
+    print("✅ Background tasks started")
 
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8010)

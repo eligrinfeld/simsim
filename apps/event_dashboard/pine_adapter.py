@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-from . import strategies as st
+import strategies as st
 
 # Pine subset translator (extended MVP)
 # Supported:
