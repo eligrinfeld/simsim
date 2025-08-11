@@ -330,14 +330,72 @@
     drawerClose.onclick = () => drawer.classList.remove('open');
 
     // Explain toggle functionality
-    explainToggle.onclick = () => {
+    let currentEventForExplain = null;
+
+    explainToggle.onclick = async () => {
       const explainDiv = drawerBody.querySelector('.explain');
-      if (explainDiv) {
-        explainDiv.classList.toggle('show');
-        explainToggle.classList.toggle('active');
-        explainToggle.textContent = explainDiv.classList.contains('show') ? 'Hide Explain' : 'Explain';
+      if (explainDiv && explainDiv.classList.contains('show')) {
+        // Hide existing explanation
+        explainDiv.classList.remove('show');
+        explainToggle.classList.remove('active');
+        explainToggle.textContent = 'Explain';
+      } else {
+        // Generate new explanation
+        if (currentEventForExplain) {
+          explainToggle.textContent = 'Loading...';
+          explainToggle.disabled = true;
+
+          try {
+            const response = await fetch('/events/explain', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(currentEventForExplain)
+            });
+
+            const result = await response.json();
+
+            // Add or update explanation div
+            let explainDiv = drawerBody.querySelector('.explain');
+            if (!explainDiv) {
+              explainDiv = document.createElement('div');
+              explainDiv.className = 'explain';
+              drawerBody.appendChild(explainDiv);
+            }
+
+            explainDiv.innerHTML = generateEventExplanationHTML(result.explanation);
+            explainDiv.classList.add('show');
+            explainToggle.classList.add('active');
+            explainToggle.textContent = 'Hide Explain';
+
+          } catch (err) {
+            console.error('Failed to get explanation:', err);
+            alert('Failed to generate explanation');
+          } finally {
+            explainToggle.disabled = false;
+          }
+        }
       }
     };
+
+    function generateEventExplanationHTML(explanation) {
+      return `
+        <h6>${explanation.title}</h6>
+        <p><strong>Summary:</strong> ${explanation.summary}</p>
+
+        <div class="metric">
+          <strong>Details:</strong>
+          ${explanation.details.map(detail => `<p>• ${detail}</p>`).join('')}
+        </div>
+
+        <div class="assessment">
+          <strong>Analysis:</strong>
+          <p>${explanation.reasoning}</p>
+
+          <p><strong>Confidence:</strong> ${explanation.confidence}</p>
+          <p><strong>Suggested Action:</strong> ${explanation.action_suggestion}</p>
+        </div>
+      `;
+    }
 
     // Generate performance explanation
     function generateExplanation(result) {
@@ -797,7 +855,19 @@
       el.onclick = () => {
         drawerTitle.textContent = label;
         drawerBody.innerHTML = drawerContent(evt);
-        explainToggle.style.display = 'none'; // Hide explain for regular events
+
+        // Show Explain button for CEP-generated events
+        const cepEventTypes = ['NewsBurst', 'MacroShock', 'Breakout', 'TradeEntryIntent'];
+        if (cepEventTypes.includes(evt.type)) {
+          currentEventForExplain = evt;
+          explainToggle.style.display = 'inline-block';
+          explainToggle.textContent = 'Explain';
+          explainToggle.classList.remove('active');
+        } else {
+          explainToggle.style.display = 'none';
+          currentEventForExplain = null;
+        }
+
         drawer.classList.add('open');
         teleEnqueue({cat:'pill', action:evt.type, ts:evt.ts});
       };

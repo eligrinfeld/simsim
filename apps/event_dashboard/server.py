@@ -5,7 +5,7 @@ from typing import Any, Callable, Deque, Dict, List, Optional
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -347,6 +347,109 @@ async def get_events_for_replay(symbol: str = None, since: int = None, until: in
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post("/events/explain")
+async def explain_event(request: Request):
+    """Generate AI explanation for why a CEP event fired."""
+    try:
+        data = await request.json()
+        event_type = data.get("type")
+        event_data = data.get("data", {})
+        event_key = data.get("key")
+        event_ts = data.get("ts")
+
+        # Generate explanation based on event type
+        explanation = generate_event_explanation(event_type, event_data, event_key, event_ts)
+
+        return JSONResponse({
+            "explanation": explanation,
+            "event_type": event_type,
+            "timestamp": event_ts
+        })
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+def generate_event_explanation(event_type: str, event_data: dict, key: str, ts: int) -> dict:
+    """Generate detailed explanation for CEP events."""
+
+    if event_type == "NewsBurst":
+        return {
+            "title": "News Burst Detected",
+            "summary": f"Multiple positive news items for {key} triggered a news burst signal.",
+            "details": [
+                f"**Trigger Condition**: 3+ positive news items within 120 seconds",
+                f"**Sentiment Threshold**: Articles with sentiment ≥ 0.6",
+                f"**Symbol**: {key}",
+                f"**Time Window**: 2-minute sliding window"
+            ],
+            "reasoning": "News bursts often precede significant price movements as market sentiment shifts rapidly. This pattern suggests increased attention and potential volatility.",
+            "confidence": "High",
+            "action_suggestion": "Monitor for price breakouts or increased volume in the next 5-10 minutes."
+        }
+
+    elif event_type == "MacroShock":
+        return {
+            "title": "Macro Economic Shock",
+            "summary": f"Significant macro event detected with potential market-wide impact.",
+            "details": [
+                f"**Event Type**: {event_data.get('type', 'Economic Release')}",
+                f"**Magnitude**: {event_data.get('magnitude', 'High')}",
+                f"**Affected Sectors**: Broad market impact expected",
+                f"**Time Sensitivity**: Immediate to 1-hour impact window"
+            ],
+            "reasoning": "Macro shocks can cause correlated moves across asset classes. This event suggests reviewing portfolio risk exposure and potential hedging needs.",
+            "confidence": "High",
+            "action_suggestion": "Consider reducing position sizes or adding hedges until market digests the news."
+        }
+
+    elif event_type == "Breakout":
+        price = event_data.get("price", 0)
+        lookback = event_data.get("lookback", 20)
+        return {
+            "title": "Price Breakout Signal",
+            "summary": f"{key} broke above its {lookback}-period high at ${price:.2f}.",
+            "details": [
+                f"**Breakout Price**: ${price:.2f}",
+                f"**Lookback Period**: {lookback} periods",
+                f"**Pattern**: Higher high formation",
+                f"**Volume**: Monitor for confirmation"
+            ],
+            "reasoning": f"Breakouts above {lookback}-period highs often signal continuation of upward momentum. This suggests buyers are willing to pay higher prices.",
+            "confidence": "Medium",
+            "action_suggestion": f"Consider entry on pullback to ${price:.2f} support level with stop below recent low."
+        }
+
+    elif event_type == "TradeEntryIntent":
+        return {
+            "title": "Trade Entry Signal",
+            "summary": f"Algorithm identified potential trade opportunity in {key}.",
+            "details": [
+                f"**Signal Strength**: {event_data.get('confidence', 'Medium')}",
+                f"**Entry Reason**: {event_data.get('reason', 'Technical pattern')}",
+                f"**Risk Level**: {event_data.get('risk', 'Standard')}",
+                f"**Time Horizon**: {event_data.get('horizon', 'Short-term')}"
+            ],
+            "reasoning": "Multiple factors aligned to suggest favorable risk/reward setup. This represents a systematic opportunity based on historical patterns.",
+            "confidence": event_data.get('confidence', 'Medium'),
+            "action_suggestion": "Review position sizing and risk management before entry."
+        }
+
+    else:
+        return {
+            "title": f"{event_type} Event",
+            "summary": f"CEP detected a {event_type} event for {key}.",
+            "details": [
+                f"**Event Type**: {event_type}",
+                f"**Symbol**: {key}",
+                f"**Data**: {str(event_data)[:100]}..."
+            ],
+            "reasoning": "This event was triggered by the Complex Event Processing engine based on predefined rules and thresholds.",
+            "confidence": "Medium",
+            "action_suggestion": "Review event details and consider impact on trading strategy."
+        }
 
 
 @app.websocket("/ws")
