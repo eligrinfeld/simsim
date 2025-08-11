@@ -1,5 +1,11 @@
 from __future__ import annotations
-import asyncio, random, time, uuid, os, json, math, traceback
+import os
+from dotenv import load_dotenv
+
+# Load environment variables FIRST before any other imports
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+
+import asyncio, random, time, uuid, json, math, traceback
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
@@ -18,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 
 import strategies as st
 try:
-    from supabase import supabase_client
+    from supabase_client import supabase_client, SUPABASE_URL, SUPABASE_KEY
 except ImportError:
     # Fallback if supabase module not available
     class MockSupabaseClient:
@@ -26,6 +32,8 @@ except ImportError:
         async def get_events(self, **kwargs): return []
         async def save_event(self, **kwargs): pass
     supabase_client = MockSupabaseClient()
+    SUPABASE_URL = ""
+    SUPABASE_KEY = ""
 
 # ---------- Event model ----------
 @dataclass
@@ -168,10 +176,35 @@ async def broadcast(evt: Event):
 cep.sink.subscribe(lambda e: asyncio.create_task(broadcast(e)))
 
 @app.get("/candles")
-async def get_candles(symbol: str = DEFAULT_SYMBOL):
-    if symbol not in candles:
-        return JSONResponse([])
-    return JSONResponse(candles[symbol][-2000:])
+async def get_candles(symbol: str = DEFAULT_SYMBOL, interval: str | None = None, period: str | None = None):
+    """Return candles.
+    - If no interval provided: return recent in-memory candles (1m)
+    - If interval provided: fetch from Yahoo Finance on demand using sensible defaults
+    """
+    try:
+        if not interval:
+            if symbol not in candles:
+                return JSONResponse([])
+            return JSONResponse(candles[symbol][-2000:])
+
+        # Map common intervals to default periods
+        tf_defaults = {
+            "1m": ("1d", "1m"),
+            "5m": ("5d", "5m"),
+            "15m": ("1mo", "15m"),
+            "30m": ("1mo", "30m"),
+            "1h": ("1mo", "1h"),
+            "1d": ("6mo", "1d"),
+            "1wk": ("2y", "1wk"),
+            "1mo": ("5y", "1mo"),
+        }
+        p, itv = tf_defaults.get(interval, (period or "1mo", interval))
+        if period:
+            p = period
+        data = await fetch_live_price_data(symbol, period=p, interval=itv)
+        return JSONResponse(data)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @app.get("/symbols")
@@ -229,6 +262,47 @@ async def get_all_sentiment_scores():
             }
 
     return JSONResponse(sentiment_summary)
+
+
+@app.get("/data/status")
+async def get_data_persistence_status():
+    """Get comprehensive data persistence status."""
+    # Ensure 'enabled' is a boolean for JSON output
+    supa_enabled = bool(getattr(supabase_client, 'enabled', False))
+    return JSONResponse({
+        "supabase": {
+            "enabled": supa_enabled,
+            "url": SUPABASE_URL[:30] + "..." if SUPABASE_URL else "Not set",
+            "key_configured": bool(SUPABASE_KEY),
+            "tables": {
+                "events": "All CEP events (NewsItem, Breakout, XSentiment, etc.)",
+                "market_data": "Live OHLCV price data from Yahoo Finance",
+                "news_articles": "RSS feed articles with sentiment analysis",
+                "economic_data": "FRED/Alpha Vantage economic indicators",
+                "sentiment_analysis": "Full Grok X sentiment analysis",
+                "pine_strategies": "User-created trading strategies",
+                "pine_results": "Strategy backtest results",
+                "user_sessions": "Analysis sessions and metadata"
+            }
+        },
+        "local_storage": {
+            "candles": {symbol: len(candles[symbol]) for symbol in SUPPORTED_SYMBOLS},
+            "sentiment_scores": {symbol: len(symbol_sentiment_scores[symbol]) for symbol in SUPPORTED_SYMBOLS},
+            "recent_events": len(recent_events)
+        },
+        "data_sources": {
+            "market_data": "Yahoo Finance API (live prices)",
+            "news": "RSS feeds (Yahoo Finance, MarketWatch, Bloomberg, CNBC)",
+            "economic": "FRED API, Alpha Vantage, Economic RSS feeds",
+            "sentiment": "Grok API (X/Twitter analysis)",
+            "api_keys": {
+                "GROK_API_KEY": bool(GROK_API_KEY),
+                "NEWS_API_KEY": bool(NEWS_API_KEY),
+                "ALPHA_VANTAGE_KEY": bool(ALPHA_VANTAGE_KEY),
+                "FRED_API_KEY": bool(FRED_API_KEY)
+            }
+        }
+    })
 
 @app.get("/events")
 async def get_events(since: Optional[int] = None):
@@ -634,6 +708,9 @@ async def initialize_live_data():
         if live_candles:
             candles[symbol] = live_candles[-2000:]  # Keep last 2000 candles
             print(f"✅ Loaded {len(candles[symbol])} candles for {symbol}")
+
+            # Save market data to Supabase
+            await supabase_client.save_market_data(symbol, live_candles)
         else:
             # Fallback to simulated data if live data fails
             print(f"⚠️ Using simulated data for {symbol}")
@@ -652,7 +729,7 @@ async def initialize_live_data():
 
 # Live news and macro data fetching functions
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")  # Get from newsapi.org
-ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")  # Get from alphavantage.co
+ALPHA_VANTAGE_KEY = os.getenv("ALPHAVANTAGE_API_KEY")  # Get from alphavantage.co
 FRED_API_KEY = os.getenv("FRED_API_KEY")  # Get from fred.stlouisfed.org
 GROK_API_KEY = os.getenv("GROK_API_KEY")  # Get from x.ai
 
@@ -1225,6 +1302,9 @@ async def update_x_sentiment_scores():
                 score = sentiment_data.get("sentiment_score", 0.0)
                 timestamp = sentiment_data.get("timestamp", int(time.time()))
 
+                # Save full sentiment analysis to Supabase
+                await supabase_client.save_sentiment_analysis(symbol, sentiment_data)
+
                 # Add to cumulative scores
                 symbol_sentiment_scores[symbol].append({
                     "timestamp": timestamp,
@@ -1351,6 +1431,10 @@ async def price_loop():
 
                         print(f"📊 Updated {symbol}: ${latest_data['price']:.2f} ({latest_data.get('changePercent', 0):.2f}%)")
 
+                        # Save updated market data to Supabase every 10 minutes
+                        if current_time % 600 == 0:  # Every 10 minutes
+                            await supabase_client.save_market_data(symbol, candles[symbol][-10:])
+
                 except Exception as e:
                     print(f"❌ Failed to update {symbol}: {e}")
 
@@ -1388,6 +1472,9 @@ async def news_loop():
 
                 if article_id not in processed_articles:
                     processed_articles.add(article_id)
+
+                    # Save article to Supabase
+                    await supabase_client.save_news_article(article)
 
                     # Process each symbol mentioned in the article
                     for symbol in article['symbols']:
@@ -1440,6 +1527,10 @@ async def macro_loop():
 
             # Detect significant macro events
             macro_events = await detect_macro_events(all_economic_data)
+
+            # Save economic data to Supabase
+            for data in all_economic_data:
+                await supabase_client.save_economic_data(data)
 
             # Process new macro events
             new_events_count = 0
