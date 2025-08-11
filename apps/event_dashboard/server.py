@@ -35,6 +35,13 @@ except ImportError:
     SUPABASE_URL = ""
     SUPABASE_KEY = ""
 
+# Strategy orchestrator (grid search and ranking)
+try:
+    from strategy_orchestrator import evaluate_grid
+except Exception:
+    evaluate_grid = None  # safe fallback
+
+
 # ---------- Event model ----------
 @dataclass
 class Event:
@@ -345,6 +352,68 @@ async def best_strategy(symbol: str = DEFAULT_SYMBOL):
     best = st.pick_best(window)
     expl = st.explain(best)
     return JSONResponse({
+
+@app.get("/strategy/run")
+async def strategy_run(symbol: str = DEFAULT_SYMBOL, timeframe: str = "1m"):
+    """Run a quick grid search over built-in strategies (and any available Pine).
+    For now, this is synchronous and returns top results. Later we can persist.
+    """
+    if evaluate_grid is None:
+        return JSONResponse(status_code=503, content={"error": "orchestrator unavailable"})
+    try:
+        # Fetch candles matching timeframe: use /candles logic for simplicity
+        if timeframe == "1m":
+            if symbol not in candles or len(candles[symbol]) < 100:
+                return JSONResponse({"error": f"Insufficient data for {symbol}"})
+            window = candles[symbol][-600:]
+        else:
+            data = await fetch_live_price_data(symbol, period=("1mo" if timeframe in ("15m","30m","1h") else "6mo"), interval=timeframe)
+            window = data[-600:]
+        ranked = evaluate_grid(window)
+        top = [
+            {
+                "name": r.name,
+                "total_return": float(r.total_return or 0.0),
+                "sharpe": float(r.sharpe or 0.0),
+                "max_drawdown": float(r.max_drawdown or 0.0),
+                "trades": r.trades,
+            }
+            for r in ranked[:5]
+        ]
+        return JSONResponse({"results": top})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/strategy/best2")
+async def strategy_best2(symbol: str = DEFAULT_SYMBOL, timeframe: str = "1m"):
+    if evaluate_grid is None:
+        return JSONResponse(status_code=503, content={"error": "orchestrator unavailable"})
+    try:
+        # Reuse run logic but return only best
+        if timeframe == "1m":
+            if symbol not in candles or len(candles[symbol]) < 100:
+                return JSONResponse({"error": f"Insufficient data for {symbol}"})
+            window = candles[symbol][-600:]
+        else:
+            data = await fetch_live_price_data(symbol, period=("1mo" if timeframe in ("15m","30m","1h") else "6mo"), interval=timeframe)
+            window = data[-600:]
+        ranked = evaluate_grid(window)
+        if not ranked:
+            return JSONResponse({"error": "no results"})
+        best = ranked[0]
+        expl = st.explain(st.BacktestResult(best.name, best.total_return, best.sharpe, best.max_drawdown, best.trades, best.details))
+        return JSONResponse({
+            "name": best.name,
+            "total_return": float(best.total_return or 0.0),
+            "sharpe": float(best.sharpe or 0.0),
+            "max_drawdown": float(best.max_drawdown or 0.0),
+            "trades": best.trades,
+            "explanation": expl,
+        })
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
         "name": best.name,
         "total_return": best.total_return,
         "sharpe": best.sharpe,

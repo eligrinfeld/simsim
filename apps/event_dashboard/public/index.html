@@ -118,6 +118,11 @@
   <div id="chart"></div>
   <div class="legend">
     <span><i class="dot blue"></i> Bar</span>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <button class="btn" id="bestStrategyBtn">Best Strategy</button>
+          <span id="bestStrategyHint" style="font-size:12px;color:#9aa4b2"></span>
+        </div>
+
     <span><i class="dot green"></i> Breakout / NewsBurst</span>
     <span><i class="dot yellow"></i> MacroShock</span>
     <span><i class="dot red"></i> TradeEntryIntent</span>
@@ -1348,6 +1353,30 @@
         explainToggle.style.display = 'inline-block';
         explainToggle.textContent = 'Explain';
         explainToggle.classList.remove('active');
+
+      // Best Strategy overlay button
+      const bestStrategyBtn = document.getElementById('bestStrategyBtn');
+      const bestStrategyHint = document.getElementById('bestStrategyHint');
+      bestStrategyBtn.addEventListener('click', async ()=>{
+        bestStrategyHint.textContent = 'Selecting...';
+        try{
+          const tf = document.querySelector('.timeframes .chip.active')?.dataset?.tf || '1m';
+          const res = await fetch(`/strategy/best2?symbol=${encodeURIComponent(currentSymbol)}&timeframe=${encodeURIComponent(tf)}`);
+          const text = await res.text();
+          const js = (()=>{try{return JSON.parse(text);}catch{return {error:text};}})();
+          if(!res.ok){ bestStrategyHint.textContent = 'Error'; return; }
+          bestStrategyHint.textContent = `${js.name} | Sharpe ${(js.sharpe||0).toFixed(2)} | ${(Number(js.total_return||0)*100).toFixed(1)}%`;
+          (js.trades||[]).forEach(t => {
+            addMarker(t.ts, t.side==='buy'?'belowBar':'aboveBar', t.side==='buy'?'#22c55e':'#ef4444', t.side==='buy'?'arrowUp':'arrowDown', (t.side==='buy'?'Buy':'Sell')+` @ ${t.price.toFixed(2)}`, `${t.side}${t.ts}`);
+          });
+          drawerTitle.textContent = js.name || 'Best Strategy';
+          const fmt = (x,p=2)=>Number.isFinite(Number(x))?Number(x).toFixed(p):'-';
+          const mdd = Number(js.max_drawdown||0);
+          drawerBody.innerHTML = `<h5>Performance</h5><div class='kv'><span>Sharpe</span><span>${fmt(js.sharpe)}</span></div><div class='kv'><span>Total Return</span><span>${(Number(js.total_return||0)*100).toFixed(1)}%</span></div><div class='kv'><span>Max DD</span><span>${(mdd*100).toFixed(1)}%</span></div><div class='kv'><span>Trades</span><span>${Array.isArray(js.trades)? js.trades.length : 0}</span></div><p style='margin-top:8px;white-space:pre-line;'>${js.explanation||''}</p>`;
+          drawer.classList.add('open');
+        }catch(e){ bestStrategyHint.textContent = 'Error'; }
+      });
+
         drawer.classList.add('open');
 
         // Auto-save results to cloud (if strategy was previously saved)
