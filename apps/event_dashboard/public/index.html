@@ -73,6 +73,7 @@
     <span class="chip" data-indic="macd">MACD</span>
     <span class="chip" id="importPine">Import Pine</span>
     <button type="button" class="btn" id="replayToggle" style="margin-left:12px;">Replay</button>
+    <button type="button" class="btn" id="sentimentToggle" style="margin-left:8px;">X Sentiment</button>
   </div>
   <div id="chart"></div>
   <div class="legend">
@@ -286,6 +287,11 @@
 
     // Symbol selector (currentSymbol already declared above)
     const symbolSelector = document.getElementById('symbolSelector');
+    const sentimentToggle = document.getElementById('sentimentToggle');
+
+    // Sentiment visualization
+    let sentimentSeries = null;
+    let sentimentVisible = false;
 
     async function switchSymbol(newSymbol) {
       if (newSymbol === currentSymbol) return;
@@ -308,6 +314,11 @@
         const data = await res.json();
         candleSeries.setData(data);
         console.log(`Loaded ${data.length} candles for ${newSymbol}`);
+
+        // Reload sentiment data if visible
+        if (sentimentVisible) {
+          await loadSentimentData();
+        }
       } catch (err) {
         console.error('Failed to load symbol data:', err);
       }
@@ -316,6 +327,62 @@
     symbolSelector.addEventListener('change', (e) => {
       switchSymbol(e.target.value);
     });
+
+    // Sentiment toggle functionality
+    sentimentToggle.addEventListener('click', async () => {
+      sentimentVisible = !sentimentVisible;
+
+      if (sentimentVisible) {
+        await loadSentimentData();
+        sentimentToggle.textContent = 'Hide Sentiment';
+        sentimentToggle.style.backgroundColor = '#10b981';
+      } else {
+        if (sentimentSeries) {
+          chart.removeSeries(sentimentSeries);
+          sentimentSeries = null;
+        }
+        sentimentToggle.textContent = 'X Sentiment';
+        sentimentToggle.style.backgroundColor = '';
+      }
+    });
+
+    async function loadSentimentData() {
+      try {
+        const response = await fetch(`/sentiment/${currentSymbol}`);
+        const data = await response.json();
+
+        if (data.sentiment_scores && data.sentiment_scores.length > 0) {
+          // Create sentiment line series
+          if (!sentimentSeries) {
+            sentimentSeries = chart.addLineSeries({
+              color: '#8b5cf6',
+              lineWidth: 2,
+              priceScaleId: 'sentiment',
+              title: 'X Sentiment'
+            });
+
+            // Create separate price scale for sentiment
+            chart.priceScale('sentiment').applyOptions({
+              scaleMargins: { top: 0.8, bottom: 0.02 },
+              borderVisible: false,
+            });
+          }
+
+          // Convert sentiment data to chart format
+          const sentimentData = data.sentiment_scores.map(item => ({
+            time: item.timestamp,
+            value: item.score
+          }));
+
+          sentimentSeries.setData(sentimentData);
+          console.log(`📊 Loaded ${sentimentData.length} sentiment points for ${currentSymbol}`);
+        } else {
+          console.log(`⚠️ No sentiment data available for ${currentSymbol}`);
+        }
+      } catch (err) {
+        console.error('Failed to load sentiment data:', err);
+      }
+    }
     const lastEvt = document.getElementById('lastEvt');
 
     // Tracks & Drawer state
@@ -857,7 +924,7 @@
         drawerBody.innerHTML = drawerContent(evt);
 
         // Show Explain button for CEP-generated events
-        const cepEventTypes = ['NewsBurst', 'MacroShock', 'Breakout', 'TradeEntryIntent'];
+        const cepEventTypes = ['NewsBurst', 'MacroShock', 'Breakout', 'TradeEntryIntent', 'XSentiment', 'StrongXSentiment', 'SentimentConfirmedBreakout', 'SentimentDivergence'];
         if (cepEventTypes.includes(evt.type)) {
           currentEventForExplain = evt;
           explainToggle.style.display = 'inline-block';

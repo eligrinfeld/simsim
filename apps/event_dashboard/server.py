@@ -191,6 +191,45 @@ async def get_symbols():
             symbols_info.append({"symbol": symbol, "price": 0, "change": 0, "volume": 0})
     return JSONResponse(symbols_info)
 
+
+@app.get("/sentiment/{symbol}")
+async def get_sentiment_scores(symbol: str):
+    """Get X sentiment scores for a symbol."""
+    if symbol not in symbol_sentiment_scores:
+        return JSONResponse({"error": f"Symbol {symbol} not supported"})
+
+    scores = symbol_sentiment_scores[symbol]
+    return JSONResponse({
+        "symbol": symbol,
+        "sentiment_scores": scores[-50:],  # Last 50 scores
+        "current_score": scores[-1]["score"] if scores else 0.0,
+        "count": len(scores)
+    })
+
+
+@app.get("/sentiment")
+async def get_all_sentiment_scores():
+    """Get current X sentiment scores for all symbols."""
+    sentiment_summary = {}
+
+    for symbol in SUPPORTED_SYMBOLS:
+        scores = symbol_sentiment_scores[symbol]
+        if scores:
+            latest = scores[-1]
+            sentiment_summary[symbol] = {
+                "current_score": latest["score"],
+                "timestamp": latest["timestamp"],
+                "total_analyses": len(scores)
+            }
+        else:
+            sentiment_summary[symbol] = {
+                "current_score": 0.0,
+                "timestamp": 0,
+                "total_analyses": 0
+            }
+
+    return JSONResponse(sentiment_summary)
+
 @app.get("/events")
 async def get_events(since: Optional[int] = None):
     if since is None:
@@ -455,6 +494,71 @@ def generate_event_explanation(event_type: str, event_data: dict, key: str, ts: 
             "action_suggestion": "Review position sizing and risk management before entry."
         }
 
+    elif event_type == "XSentiment":
+        score = event_data.get("sentiment_score", 0)
+        direction = "bullish" if score > 0 else "bearish" if score < 0 else "neutral"
+        return {
+            "title": "X (Twitter) Sentiment Analysis",
+            "summary": f"Social media sentiment for {key} is {direction} with score {score:.2f}.",
+            "details": [
+                f"**Sentiment Score**: {score:.2f} (-1 to +1 scale)",
+                f"**Direction**: {direction.title()}",
+                f"**Source**: X (Twitter) via Grok AI",
+                f"**Analysis**: Real-time social media sentiment"
+            ],
+            "reasoning": "Social media sentiment often precedes or confirms price movements. Strong sentiment can indicate retail investor interest and potential momentum.",
+            "confidence": "Medium",
+            "action_suggestion": f"Monitor for price correlation with {direction} sentiment. Consider position sizing based on sentiment strength."
+        }
+
+    elif event_type == "StrongXSentiment":
+        score = event_data.get("sentiment_score", 0)
+        direction = event_data.get("direction", "neutral")
+        magnitude = event_data.get("magnitude", 0)
+        return {
+            "title": "Strong X Sentiment Signal",
+            "summary": f"Very strong {direction} sentiment detected for {key} (score: {score:.2f}).",
+            "details": [
+                f"**Sentiment Score**: {score:.2f}",
+                f"**Direction**: {direction.title()}",
+                f"**Magnitude**: {magnitude:.2f}",
+                f"**Threshold**: ≥0.7 for strong sentiment"
+            ],
+            "reasoning": "Extreme social media sentiment often correlates with significant price movements. This level of sentiment suggests strong retail interest.",
+            "confidence": "High",
+            "action_suggestion": f"Strong {direction} sentiment may drive price action. Consider {'long' if direction == 'bullish' else 'short'} positions with tight risk management."
+        }
+
+    elif event_type == "SentimentConfirmedBreakout":
+        return {
+            "title": "Sentiment-Confirmed Breakout",
+            "summary": f"Price breakout for {key} confirmed by strong social media sentiment.",
+            "details": [
+                f"**Pattern**: Breakout + Strong Sentiment",
+                f"**Timeframe**: Sentiment preceded breakout within 30 minutes",
+                f"**Confirmation**: Social media aligns with price action",
+                f"**Signal Strength**: High (dual confirmation)"
+            ],
+            "reasoning": "When strong social sentiment precedes a price breakout, it suggests the move has both technical and fundamental backing from retail sentiment.",
+            "confidence": "High",
+            "action_suggestion": "High-confidence signal for trend continuation. Consider increasing position size with appropriate risk management."
+        }
+
+    elif event_type == "SentimentDivergence":
+        return {
+            "title": "Sentiment-Price Divergence",
+            "summary": f"Social media sentiment diverging from price action for {key}.",
+            "details": [
+                f"**Pattern**: Sentiment vs Price Divergence",
+                f"**Window**: Multiple sentiment readings in 1 hour",
+                f"**Signal**: Potential reversal or continuation",
+                f"**Analysis**: Social sentiment not matching price"
+            ],
+            "reasoning": "Divergence between social sentiment and price can signal either a pending reversal or a false sentiment reading. Requires additional confirmation.",
+            "confidence": "Medium",
+            "action_suggestion": "Monitor for resolution of divergence. Wait for price or sentiment to align before taking positions."
+        }
+
     else:
         return {
             "title": f"{event_type} Event",
@@ -550,6 +654,7 @@ async def initialize_live_data():
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")  # Get from newsapi.org
 ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")  # Get from alphavantage.co
 FRED_API_KEY = os.getenv("FRED_API_KEY")  # Get from fred.stlouisfed.org
+GROK_API_KEY = os.getenv("GROK_API_KEY")  # Get from x.ai
 
 def analyze_sentiment(text: str) -> float:
     """Analyze sentiment of text using TextBlob. Returns score between -1 and 1."""
@@ -989,6 +1094,189 @@ async def generate_mock_economic_events() -> List[Dict[str, Any]]:
     return mock_events
 
 
+# X (Twitter) sentiment analysis using Grok API
+async def fetch_x_sentiment_analysis(ticker: str) -> Dict[str, Any]:
+    """Fetch and analyze X posts for a ticker using Grok API."""
+    if not GROK_API_KEY:
+        return {"error": "GROK_API_KEY not available"}
+
+    try:
+        url = "https://api.x.ai/v1/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {GROK_API_KEY}"
+        }
+
+        prompt = f"""Using your available tools like x_keyword_search or x_semantic_search, fetch the latest 20 posts on X that mention the ticker ${ticker} (sort by Latest mode). Focus on posts from the past 7 days that discuss stock performance, news, or sentiment.
+
+Then, perform the following analysis:
+
+Analyze the overall sentiment of the posts: Categorize them as positive, negative, neutral, or mixed. Provide a sentiment score on a scale of -1 (very bearish) to +1 (very bullish), based on the majority tone.
+Determine the overall direction of the stock: Summarize if the consensus points to upward (bullish), downward (bearish), or sideways movement, with key reasons extracted from the posts (e.g., earnings reports, market trends, or events).
+If any posts mention or link to a new article (published within the last 7 days), use tools like browse_page or web_search to access and summarize the article. Include the article's title, source, publication date, key points, and how it relates to the stock.
+Present your response in a structured format:
+
+Latest Posts Summary: List 5-10 key posts with usernames, dates, and brief excerpts.
+Sentiment Analysis: Overall score and breakdown.
+Stock Direction: Predicted direction and rationale.
+Article Summaries: If applicable, one per mentioned article.
+Do not fabricate information; base everything on the searched data."""
+
+        payload = {
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a financial sentiment analyst with access to X (Twitter) data. Use your tools to search for real posts and provide accurate analysis."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "model": "grok-4-latest",
+            "stream": False,
+            "temperature": 0.3
+        }
+
+        response = requests.post(url, headers=headers, json=payload, timeout=60)
+
+        if response.status_code == 200:
+            data = response.json()
+            if "choices" in data and len(data["choices"]) > 0:
+                analysis_text = data["choices"][0]["message"]["content"]
+
+                # Parse the structured response to extract sentiment score
+                sentiment_score = extract_sentiment_score(analysis_text)
+
+                return {
+                    "ticker": ticker,
+                    "analysis": analysis_text,
+                    "sentiment_score": sentiment_score,
+                    "timestamp": int(time.time()),
+                    "source": "X_via_Grok",
+                    "token_usage": data.get("usage", {})
+                }
+            else:
+                return {"error": "No response from Grok API"}
+        else:
+            print(f"❌ Grok API error: {response.status_code} - {response.text}")
+            return {"error": f"API error: {response.status_code}"}
+
+    except Exception as e:
+        print(f"❌ X sentiment analysis error for {ticker}: {e}")
+        return {"error": str(e)}
+
+def extract_sentiment_score(analysis_text: str) -> float:
+    """Extract numerical sentiment score from Grok's analysis text."""
+    try:
+        # Look for sentiment score patterns in the text
+        import re
+
+        # Pattern 1: "sentiment score: 0.X" or "score of 0.X"
+        score_patterns = [
+            r"sentiment score[:\s]+([+-]?\d*\.?\d+)",
+            r"score of ([+-]?\d*\.?\d+)",
+            r"overall score[:\s]+([+-]?\d*\.?\d+)",
+            r"bullish.*?([+-]?\d*\.?\d+)",
+            r"bearish.*?([+-]?\d*\.?\d+)"
+        ]
+
+        for pattern in score_patterns:
+            match = re.search(pattern, analysis_text.lower())
+            if match:
+                score = float(match.group(1))
+                # Ensure score is within -1 to +1 range
+                return max(-1.0, min(1.0, score))
+
+        # Pattern 2: Look for qualitative sentiment indicators
+        text_lower = analysis_text.lower()
+
+        # Count positive and negative indicators
+        positive_indicators = ["bullish", "positive", "optimistic", "upward", "buy", "strong", "growth"]
+        negative_indicators = ["bearish", "negative", "pessimistic", "downward", "sell", "weak", "decline"]
+
+        pos_count = sum(1 for word in positive_indicators if word in text_lower)
+        neg_count = sum(1 for word in negative_indicators if word in text_lower)
+
+        if pos_count > neg_count:
+            return 0.5  # Moderately positive
+        elif neg_count > pos_count:
+            return -0.5  # Moderately negative
+        else:
+            return 0.0  # Neutral
+
+    except Exception as e:
+        print(f"❌ Error extracting sentiment score: {e}")
+        return 0.0  # Default to neutral
+
+# Store cumulative sentiment scores for charting
+symbol_sentiment_scores = {symbol: [] for symbol in SUPPORTED_SYMBOLS}
+
+async def update_x_sentiment_scores():
+    """Update X sentiment scores for all supported symbols."""
+    print("🐦 Updating X sentiment analysis...")
+
+    for symbol in SUPPORTED_SYMBOLS:
+        try:
+            # Fetch sentiment analysis from Grok
+            sentiment_data = await fetch_x_sentiment_analysis(symbol)
+
+            if "error" not in sentiment_data:
+                score = sentiment_data.get("sentiment_score", 0.0)
+                timestamp = sentiment_data.get("timestamp", int(time.time()))
+
+                # Add to cumulative scores
+                symbol_sentiment_scores[symbol].append({
+                    "timestamp": timestamp,
+                    "score": score,
+                    "analysis": sentiment_data.get("analysis", "")[:200] + "..."  # Truncate for storage
+                })
+
+                # Keep only last 100 sentiment scores per symbol
+                if len(symbol_sentiment_scores[symbol]) > 100:
+                    symbol_sentiment_scores[symbol] = symbol_sentiment_scores[symbol][-100:]
+
+                # Create X sentiment event for CEP
+                x_sentiment_event = Event(
+                    "XSentiment",
+                    key=symbol,
+                    ts=timestamp,
+                    data={
+                        "sentiment_score": score,
+                        "source": "X_via_Grok",
+                        "analysis_preview": sentiment_data.get("analysis", "")[:100]
+                    }
+                )
+
+                cep.ingest(x_sentiment_event)
+                await broadcast(x_sentiment_event)
+
+                print(f"🐦 X Sentiment {symbol}: {score:.2f}")
+
+                # Generate strong sentiment events
+                if abs(score) >= 0.7:
+                    strong_sentiment_event = Event(
+                        "StrongXSentiment",
+                        key=symbol,
+                        ts=timestamp,
+                        data={
+                            "sentiment_score": score,
+                            "direction": "bullish" if score > 0 else "bearish",
+                            "magnitude": abs(score)
+                        }
+                    )
+                    cep.ingest(strong_sentiment_event)
+                    await broadcast(strong_sentiment_event)
+                    print(f"🚨 Strong X Sentiment {symbol}: {score:.2f} ({'bullish' if score > 0 else 'bearish'})")
+
+            # Rate limiting - don't overwhelm Grok API
+            await asyncio.sleep(10)  # 10 seconds between symbols
+
+        except Exception as e:
+            print(f"❌ Error updating X sentiment for {symbol}: {e}")
+            continue
+
+
 @app.websocket("/ws")
 async def ws(ws: WebSocket):
     await ws.accept()
@@ -1198,6 +1486,27 @@ async def macro_loop():
             print(f"❌ Macro loop error: {e}")
             await asyncio.sleep(300)  # Wait 5 minutes before retrying
 
+
+async def x_sentiment_loop():
+    """X sentiment analysis loop - updates every 2 hours."""
+    print("🐦 Starting X sentiment monitoring...")
+
+    # Wait 2 minutes before first run to let other systems initialize
+    await asyncio.sleep(120)
+
+    while True:
+        try:
+            await update_x_sentiment_scores()
+            print("✅ X sentiment analysis complete")
+
+            # Wait 2 hours before next analysis (to respect API limits and costs)
+            await asyncio.sleep(7200)  # 2 hours
+
+        except Exception as e:
+            print(f"❌ X sentiment loop error: {e}")
+            await asyncio.sleep(1800)  # Wait 30 minutes before retrying
+
+
 # CEP rules
 
 def install_rules():
@@ -1217,6 +1526,25 @@ def install_rules():
         within_sec=15*60,
         where_then=lambda m,b: True,
         emit_type="TradeEntryIntent",
+    )
+
+    # X sentiment correlation rules
+    cep.on_sequence(
+        name="strong_sentiment_then_breakout",
+        first_type="StrongXSentiment", then_type="Breakout",
+        within_sec=30*60,  # 30 minutes
+        where_then=lambda s,b: s.key == b.key,  # Same symbol
+        emit_type="SentimentConfirmedBreakout",
+    )
+
+    # Sentiment divergence detection
+    cep.on_sliding_count(
+        name="sentiment_price_divergence",
+        event_type="XSentiment",
+        within_sec=60*60,  # 1 hour window
+        threshold=3,
+        where=lambda s: abs(s.data.get("sentiment_score", 0)) >= 0.5,
+        emit_type="SentimentDivergence",
     )
 
 @app.post("/telemetry")
@@ -1241,7 +1569,8 @@ async def on_startup():
     asyncio.create_task(price_loop())
     asyncio.create_task(news_loop())
     asyncio.create_task(macro_loop())
-    print("✅ Background tasks started")
+    asyncio.create_task(x_sentiment_loop())
+    print("✅ Background tasks started (including X sentiment analysis)")
 
 
 if __name__ == "__main__":
