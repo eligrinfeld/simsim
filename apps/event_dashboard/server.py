@@ -223,7 +223,8 @@ async def get_symbols():
                 "symbol": symbol,
                 "price": q.get("price", 0),
                 "change": q.get("change", 0),
-                "changePercent": q.get("changePercent", 0),
+                # Normalize to fraction (e.g., 0.0007 = 0.07%) so clients can *100
+                "changePercent": (q.get("changePercent", 0) or 0) / 100.0,
                 "volume": q.get("volume", 0),
             })
             continue

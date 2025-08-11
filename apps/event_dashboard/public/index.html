@@ -368,13 +368,12 @@
 	      const el = document.getElementById('watchlist'); if(!el) return;
 	      el.innerHTML = '';
 	      (list||[]).forEach(it=>{
-	        const green = Number(it.change||0) >= 0;
+	        const pct = (Number(it.changePercent) || 0);
+	        const green = (Number(it.change||0) >= 0) || pct > 0;
 	        const row = document.createElement('div');
 	        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px;border:1px solid #243040;border-radius:8px;background:#0b0e11';
-
-
-
-	        row.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><strong>${it.symbol}</strong><small style="color:#9aa4b2">Vol ${it.volume||0}</small></div><div><span style="margin-right:6px">$${Number(it.price||0).toFixed(2)}</span><span style="color:${green?'#22c55e':'#ef4444'}">${green?'▲':'▼'} ${(Number(it.changePercent||0)*100).toFixed(2)}%</span></div>`;
+	        const pctText = `${pct>0?'+':''}${(pct*100).toFixed(2)}%`;
+	        row.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><strong>${it.symbol}</strong><small style="color:#9aa4b2">Vol ${it.volume||0}</small></div><div><span style="margin-right:6px">$${Number(it.price||0).toFixed(2)}</span><span style="color:${green?'#22c55e':'#ef4444'}">${green?'▲':'▼'} ${pctText}</span></div>`;
 	        row.addEventListener('click', ()=> switchSymbol(it.symbol));
 	        el.appendChild(row);
 	      });
