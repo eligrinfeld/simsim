@@ -46,8 +46,11 @@ def Bar(symbol: str, o: float, h: float, l: float, c: float, v: float) -> Event:
 def NewsItem(symbol: str, sentiment: float, headline: str) -> Event:
     return Event("NewsItem", key=symbol, data={"sentiment": sentiment, "headline": headline})
 
-def MacroRelease(series: str, actual: float, estimate: float) -> Event:
-    return Event("MacroRelease", key=series, data={"series": series, "actual": actual, "estimate": estimate, "surprise": actual - estimate})
+def MacroRelease(series: str, actual: float = 0, estimate: float = 0, surprise: float = 0) -> Event:
+    return Event("MacroRelease", key=series, data={"series": series, "actual": actual, "estimate": estimate, "surprise": surprise or (actual - estimate)})
+
+def MacroShock(series: str, magnitude: float) -> Event:
+    return Event("MacroShock", key=series, data={"series": series, "magnitude": magnitude})
 
 # ---------- Simple CEP core ----------
 class EventSink:
@@ -543,9 +546,10 @@ async def initialize_live_data():
     print("✅ Live data initialization complete")
 
 
-# Live news fetching functions
+# Live news and macro data fetching functions
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")  # Get from newsapi.org
 ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")  # Get from alphavantage.co
+FRED_API_KEY = os.getenv("FRED_API_KEY")  # Get from fred.stlouisfed.org
 
 def analyze_sentiment(text: str) -> float:
     """Analyze sentiment of text using TextBlob. Returns score between -1 and 1."""
@@ -727,6 +731,264 @@ async def fetch_rss_news() -> List[Dict[str, Any]]:
     return articles
 
 
+# Live economic data fetching functions
+async def fetch_fred_data(series_id: str, limit: int = 1) -> Dict[str, Any]:
+    """Fetch economic data from FRED API."""
+    if not FRED_API_KEY:
+        return {}
+
+    try:
+        url = f"https://api.stlouisfed.org/fred/series/observations"
+        params = {
+            "series_id": series_id,
+            "api_key": FRED_API_KEY,
+            "file_type": "json",
+            "limit": limit,
+            "sort_order": "desc"
+        }
+
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            observations = data.get("observations", [])
+
+            if observations:
+                latest = observations[0]
+                return {
+                    "series_id": series_id,
+                    "date": latest.get("date"),
+                    "value": float(latest.get("value", 0)) if latest.get("value") != "." else None,
+                    "source": "FRED"
+                }
+
+    except Exception as e:
+        print(f"❌ FRED API error for {series_id}: {e}")
+
+    return {}
+
+async def fetch_alpha_vantage_economic_data() -> List[Dict[str, Any]]:
+    """Fetch economic indicators from Alpha Vantage."""
+    if not ALPHA_VANTAGE_KEY:
+        return []
+
+    indicators = [
+        ("REAL_GDP", "Real GDP"),
+        ("CPI", "Consumer Price Index"),
+        ("INFLATION", "Inflation Rate"),
+        ("UNEMPLOYMENT", "Unemployment Rate"),
+        ("FEDERAL_FUNDS_RATE", "Federal Funds Rate")
+    ]
+
+    economic_data = []
+
+    for indicator_code, indicator_name in indicators:
+        try:
+            url = "https://www.alphavantage.co/query"
+            params = {
+                "function": indicator_code,
+                "apikey": ALPHA_VANTAGE_KEY,
+                "datatype": "json"
+            }
+
+            response = requests.get(url, params=params, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+
+                # Different indicators have different data structures
+                data_key = "data" if "data" in data else list(data.keys())[1] if len(data.keys()) > 1 else None
+
+                if data_key and data_key in data:
+                    indicator_data = data[data_key]
+                    if isinstance(indicator_data, list) and len(indicator_data) > 0:
+                        latest = indicator_data[0]
+                        economic_data.append({
+                            "indicator": indicator_name,
+                            "code": indicator_code,
+                            "date": latest.get("date"),
+                            "value": float(latest.get("value", 0)) if latest.get("value") else None,
+                            "source": "Alpha Vantage"
+                        })
+
+            # Rate limit - Alpha Vantage allows 5 calls per minute for free tier
+            await asyncio.sleep(12)  # Wait 12 seconds between calls
+
+        except Exception as e:
+            print(f"❌ Alpha Vantage economic data error for {indicator_code}: {e}")
+            continue
+
+    return economic_data
+
+async def fetch_economic_calendar() -> List[Dict[str, Any]]:
+    """Fetch economic calendar events from various sources."""
+    events = []
+
+    # Try to get key economic indicators from FRED
+    fred_indicators = [
+        ("CPIAUCSL", "Consumer Price Index", "inflation"),
+        ("UNRATE", "Unemployment Rate", "employment"),
+        ("GDPC1", "Real GDP", "growth"),
+        ("FEDFUNDS", "Federal Funds Rate", "monetary_policy"),
+        ("PAYEMS", "Nonfarm Payrolls", "employment")
+    ]
+
+    for series_id, name, category in fred_indicators:
+        try:
+            data = await fetch_fred_data(series_id)
+            if data and data.get("value") is not None:
+                events.append({
+                    "name": name,
+                    "category": category,
+                    "value": data["value"],
+                    "date": data["date"],
+                    "series_id": series_id,
+                    "source": "FRED"
+                })
+        except Exception as e:
+            print(f"❌ Error fetching {name}: {e}")
+            continue
+
+    return events
+
+def calculate_economic_surprise(current_value: float, historical_values: List[float]) -> float:
+    """Calculate economic surprise based on deviation from historical average."""
+    if not historical_values or len(historical_values) < 2:
+        return 0.0
+
+    historical_avg = sum(historical_values) / len(historical_values)
+    historical_std = (sum((x - historical_avg) ** 2 for x in historical_values) / len(historical_values)) ** 0.5
+
+    if historical_std == 0:
+        return 0.0
+
+    # Calculate z-score (number of standard deviations from mean)
+    surprise = (current_value - historical_avg) / historical_std
+    return surprise
+
+async def detect_macro_events(economic_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Detect significant macro economic events from economic data."""
+    macro_events = []
+
+    for indicator in economic_data:
+        try:
+            # Fetch historical data for comparison
+            if indicator.get("source") == "FRED" and indicator.get("series_id"):
+                historical_data = await fetch_fred_data(indicator["series_id"], limit=12)  # Last 12 observations
+
+                if historical_data and "historical_values" in historical_data:
+                    surprise = calculate_economic_surprise(
+                        indicator["value"],
+                        historical_data["historical_values"]
+                    )
+
+                    # Significant surprise threshold (2+ standard deviations)
+                    if abs(surprise) >= 2.0:
+                        macro_events.append({
+                            "type": "MacroShock" if abs(surprise) >= 2.5 else "MacroRelease",
+                            "indicator": indicator["name"],
+                            "value": indicator["value"],
+                            "surprise": surprise,
+                            "magnitude": "High" if abs(surprise) >= 2.5 else "Medium",
+                            "direction": "positive" if surprise > 0 else "negative",
+                            "date": indicator["date"],
+                            "source": indicator["source"]
+                        })
+
+        except Exception as e:
+            print(f"❌ Error processing macro event for {indicator.get('name', 'unknown')}: {e}")
+            continue
+
+    return macro_events
+
+async def fetch_economic_rss_feeds() -> List[Dict[str, Any]]:
+    """Fetch economic news from RSS feeds as fallback (no API key required)."""
+    economic_feeds = [
+        "https://www.federalreserve.gov/feeds/press_all.xml",
+        "https://www.bls.gov/feed/news_release/rss.xml",
+        "https://www.census.gov/economic-indicators/indicator.xml"
+    ]
+
+    economic_events = []
+
+    for feed_url in economic_feeds:
+        try:
+            feed = feedparser.parse(feed_url)
+
+            for entry in feed.entries[:3]:  # Limit to 3 entries per feed
+                if hasattr(entry, 'title') and hasattr(entry, 'summary'):
+                    title = entry.title.upper()
+                    summary = getattr(entry, 'summary', '').upper()
+                    text = f"{title} {summary}"
+
+                    # Look for key economic indicators in the text
+                    economic_indicators = {
+                        "CPI": ["CONSUMER PRICE", "INFLATION", "CPI"],
+                        "EMPLOYMENT": ["UNEMPLOYMENT", "JOBS", "PAYROLL", "EMPLOYMENT"],
+                        "GDP": ["GDP", "GROSS DOMESTIC", "ECONOMIC GROWTH"],
+                        "FED": ["FEDERAL RESERVE", "INTEREST RATE", "MONETARY POLICY"],
+                        "HOUSING": ["HOUSING", "HOME SALES", "CONSTRUCTION"]
+                    }
+
+                    for category, keywords in economic_indicators.items():
+                        for keyword in keywords:
+                            if keyword in text:
+                                # Extract potential numbers from the text
+                                import re
+                                numbers = re.findall(r'\d+\.?\d*%?', text)
+
+                                economic_events.append({
+                                    "indicator": category,
+                                    "title": entry.title,
+                                    "date": getattr(entry, 'published', ''),
+                                    "source": feed.feed.get('title', 'Economic RSS'),
+                                    "numbers": numbers[:3],  # First 3 numbers found
+                                    "category": "economic_release"
+                                })
+                                break
+                        if economic_events and economic_events[-1]["indicator"] == category:
+                            break
+
+        except Exception as e:
+            print(f"❌ Economic RSS feed error for {feed_url}: {e}")
+            continue
+
+    return economic_events
+
+async def generate_mock_economic_events() -> List[Dict[str, Any]]:
+    """Generate realistic mock economic events when APIs are unavailable."""
+    import random
+
+    # Simulate realistic economic data with some volatility
+    mock_events = []
+
+    # Only generate events occasionally to simulate real economic calendar
+    if random.random() < 0.1:  # 10% chance of economic event
+        indicators = [
+            {"name": "CPI", "base": 3.2, "volatility": 0.3},
+            {"name": "Unemployment Rate", "base": 3.8, "volatility": 0.2},
+            {"name": "GDP Growth", "base": 2.5, "volatility": 0.4},
+            {"name": "Federal Funds Rate", "base": 5.25, "volatility": 0.25}
+        ]
+
+        selected = random.choice(indicators)
+        value = selected["base"] + random.uniform(-selected["volatility"], selected["volatility"])
+
+        # Calculate surprise based on deviation from base
+        surprise = (value - selected["base"]) / selected["volatility"]
+
+        if abs(surprise) >= 1.0:  # Only significant surprises
+            mock_events.append({
+                "indicator": selected["name"],
+                "value": value,
+                "surprise": surprise,
+                "magnitude": "High" if abs(surprise) >= 2.0 else "Medium",
+                "direction": "positive" if surprise > 0 else "negative",
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "source": "Simulated"
+            })
+
+    return mock_events
+
+
 @app.websocket("/ws")
 async def ws(ws: WebSocket):
     await ws.accept()
@@ -869,13 +1131,72 @@ async def news_loop():
             await asyncio.sleep(60)  # Wait 1 minute before retrying
 
 async def macro_loop():
+    """Live macro economic data monitoring loop - checks every 30 minutes."""
+    print("📊 Starting live macro economic monitoring...")
+    processed_events = set()  # Track processed events to avoid duplicates
+
     while True:
-        await asyncio.sleep(random.uniform(45, 75))
-        est = random.uniform(0.0, 0.4)
-        act = est + random.choice([-0.5, -0.3, +0.3, +0.5])
-        evt = MacroRelease("US:CPI", actual=act, estimate=est)
-        cep.ingest(evt)
-        await broadcast(evt)
+        try:
+            # Fetch economic data from multiple sources
+            economic_data = await fetch_economic_calendar()
+            alpha_data = await fetch_alpha_vantage_economic_data()
+            rss_data = await fetch_economic_rss_feeds()
+            mock_data = await generate_mock_economic_events()
+
+            # Combine all economic data
+            all_economic_data = economic_data + alpha_data + mock_data
+
+            # Log RSS data for monitoring
+            if rss_data:
+                print(f"📊 Found {len(rss_data)} economic RSS items")
+
+            # Detect significant macro events
+            macro_events = await detect_macro_events(all_economic_data)
+
+            # Process new macro events
+            new_events_count = 0
+            for event_data in macro_events:
+                # Create unique ID for event
+                event_id = f"{event_data['indicator']}_{event_data.get('date', '')}"
+
+                if event_id not in processed_events:
+                    processed_events.add(event_id)
+
+                    # Create MacroRelease event
+                    macro_release = MacroRelease(
+                        f"US:{event_data['indicator']}",
+                        actual=event_data.get('value', 0),
+                        surprise=event_data.get('surprise', 0)
+                    )
+                    cep.ingest(macro_release)
+                    await broadcast(macro_release)
+                    new_events_count += 1
+
+                    print(f"📊 Macro: {event_data['indicator']} | Surprise: {event_data.get('surprise', 0):.2f} | {event_data.get('magnitude', 'Medium')}")
+
+                    # Create MacroShock if surprise is significant
+                    if event_data.get('magnitude') == 'High':
+                        macro_shock = MacroShock(
+                            f"US:{event_data['indicator']}",
+                            magnitude=abs(event_data.get('surprise', 0))
+                        )
+                        cep.ingest(macro_shock)
+                        await broadcast(macro_shock)
+                        print(f"🚨 MacroShock: {event_data['indicator']} | Magnitude: {abs(event_data.get('surprise', 0)):.2f}")
+
+            if new_events_count > 0:
+                print(f"✅ Processed {new_events_count} new macro events")
+
+            # Clean up old processed events (keep last 100)
+            if len(processed_events) > 100:
+                processed_events.clear()
+
+            # Wait 30 minutes before next check (economic data updates infrequently)
+            await asyncio.sleep(1800)
+
+        except Exception as e:
+            print(f"❌ Macro loop error: {e}")
+            await asyncio.sleep(300)  # Wait 5 minutes before retrying
 
 # CEP rules
 
