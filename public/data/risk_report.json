@@ -1,0 +1,10 @@
+{
+  "universe_size": 36,
+  "nonzero": 5,
+  "weight_sum": 1.0,
+  "max_weight": 0.2,
+  "vol_annual": 0.15708581614203512,
+  "max_drawdown": -0.1368061155718604,
+  "VaR_5pct": -0.013670484682791731,
+  "CVaR_5pct": -0.01907603745613599
+}

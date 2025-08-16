@@ -1,0 +1,823 @@
+{
+  "AAPL": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.683,
+    "total_return": 0.235,
+    "excess_return": 0.051,
+    "win_rate": 0.005,
+    "max_drawdown": -0.117,
+    "sharpe_ratio": 0.76,
+    "performance_score": 68.3,
+    "risk_level": "Medium",
+    "allocation": 0.5,
+    "description": "Short-term mean reversion with time caps"
+  },
+  "META": {
+    "strategy": "Chande_Kroll_Stop",
+    "strategy_type": "Risk Management",
+    "confidence": 0.649,
+    "total_return": 0.052,
+    "excess_return": -0.132,
+    "win_rate": 0.005,
+    "max_drawdown": -0.431,
+    "sharpe_ratio": -0.08,
+    "performance_score": 64.9,
+    "risk_level": "Aggressive",
+    "allocation": 0.2,
+    "description": "ATR-based trailing stops"
+  },
+  "AMZN": {
+    "strategy": "HMA",
+    "strategy_type": "Momentum",
+    "confidence": 0.643,
+    "total_return": 0.15,
+    "excess_return": -0.034,
+    "win_rate": 0.005,
+    "max_drawdown": -0.2,
+    "sharpe_ratio": 0.5,
+    "performance_score": 64.3,
+    "risk_level": "Medium",
+    "allocation": 0.4,
+    "description": "Hull Moving Average momentum"
+  },
+  "AMD": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.6863596405084516,
+    "total_return": 0.21134364499143052,
+    "excess_return": 0.02734364499143052,
+    "win_rate": 0.5098392108294516,
+    "max_drawdown": -0.08215411015737227,
+    "sharpe_ratio": 1.1939815278593882,
+    "performance_score": 68.63596405084516,
+    "risk_level": "Medium",
+    "allocation": 0.45371687140102934,
+    "description": "Connors_RSI strategy optimized for AMD"
+  },
+  "UBER": {
+    "strategy": "Ichimoku_Cloud",
+    "strategy_type": "Trend",
+    "confidence": 0.7370860757129747,
+    "total_return": 0.4325170453467882,
+    "excess_return": 0.2485170453467882,
+    "win_rate": 0.4460025147918166,
+    "max_drawdown": -0.06706101178594952,
+    "sharpe_ratio": 4.098230468795168,
+    "performance_score": 73.70860757129746,
+    "risk_level": "Medium",
+    "allocation": 0.5548664363848148,
+    "description": "Ichimoku_Cloud strategy optimized for UBER"
+  },
+  "SPOT": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.7068027279187017,
+    "total_return": 0.2977560846525047,
+    "excess_return": 0.1137560846525047,
+    "win_rate": 0.49107442536033896,
+    "max_drawdown": -0.22257407411164887,
+    "sharpe_ratio": 1.37811401787959,
+    "performance_score": 70.68027279187017,
+    "risk_level": "Medium",
+    "allocation": 0.4839392590392407,
+    "description": "Connors_RSI strategy optimized for SPOT"
+  },
+  "PLTR": {
+    "strategy": "HMA",
+    "strategy_type": "Momentum",
+    "confidence": 0.5614409013945628,
+    "total_return": 0.11315476153714706,
+    "excess_return": -0.07084523846285294,
+    "win_rate": 0.49656958241598476,
+    "max_drawdown": -0.2513314135966687,
+    "sharpe_ratio": 1.0113782079059142,
+    "performance_score": 56.14409013945628,
+    "risk_level": "Medium",
+    "allocation": 0.22465643609338504,
+    "description": "HMA strategy optimized for PLTR"
+  },
+  "ROKU": {
+    "strategy": "Ichimoku_Cloud",
+    "strategy_type": "Trend",
+    "confidence": 0.75223639376606,
+    "total_return": 0.475803654272338,
+    "excess_return": 0.291803654272338,
+    "win_rate": 0.4906490789021762,
+    "max_drawdown": -0.19862236896176338,
+    "sharpe_ratio": 2.3415502557869483,
+    "performance_score": 75.223639376606,
+    "risk_level": "Medium",
+    "allocation": 0.57,
+    "description": "Ichimoku_Cloud selected for LONG position. Market Analysis: Overbought RSI (72.4) | Uptrend confirmed | Bullish sentiment",
+    "market_analysis": {
+      "recommendation": "LONG",
+      "confidence": 0.8999999999999999,
+      "reasoning": [
+        "Overbought RSI (72.4)",
+        "Uptrend confirmed",
+        "Bullish sentiment"
+      ],
+      "technical_data": {
+        "rsi": 72.37829714976415,
+        "price_vs_ma200": 0.06813173334704592,
+        "trend_direction": "up",
+        "volume_trend": "stable",
+        "volatility": 0.2237975663221036,
+        "support_resistance": "middle_range",
+        "news_sentiment": "bullish",
+        "analyst_rating": "buy",
+        "market_regime": "choppy",
+        "sector_performance": -0.0660343064767824
+      }
+    },
+    "position_type": "LONG"
+  },
+  "HOOD": {
+    "strategy": "BillWilliams_Alligator",
+    "strategy_type": "Trend",
+    "confidence": 0.7848918676679001,
+    "total_return": 0.4872889686526048,
+    "excess_return": 0.3032889686526048,
+    "win_rate": 0.628879062478487,
+    "max_drawdown": -0.09939206604530267,
+    "sharpe_ratio": 4.0744312793613044,
+    "performance_score": 78.48918676679001,
+    "risk_level": "Low",
+    "allocation": 0.58,
+    "description": "BillWilliams_Alligator selected for LONG position. Market Analysis: Uptrend confirmed | Bullish sentiment",
+    "market_analysis": {
+      "recommendation": "LONG",
+      "confidence": 0.9333333333333333,
+      "reasoning": [
+        "Uptrend confirmed",
+        "Bullish sentiment"
+      ],
+      "technical_data": {
+        "rsi": 51.26274870135002,
+        "price_vs_ma200": 0.23992015923656157,
+        "trend_direction": "up",
+        "volume_trend": "increasing",
+        "volatility": 0.28051003226704996,
+        "support_resistance": "middle_range",
+        "news_sentiment": "bullish",
+        "analyst_rating": "sell",
+        "market_regime": "choppy",
+        "sector_performance": -0.09637816738975552
+      }
+    },
+    "position_type": "LONG"
+  },
+  "COIN": {
+    "strategy": "KAMA",
+    "strategy_type": "Momentum",
+    "confidence": 0.7737215132147328,
+    "total_return": 0.41651509747544063,
+    "excess_return": 0.23251509747544064,
+    "win_rate": 0.48723340219676115,
+    "max_drawdown": -0.2099206789486332,
+    "sharpe_ratio": 2.024924215378549,
+    "performance_score": 77.37215132147328,
+    "risk_level": "Medium",
+    "allocation": 0.4938461538461538,
+    "description": "KAMA selected for LONG position. Market Analysis: Uptrend confirmed | Bearish sentiment | Near resistance level | Bull Market environment",
+    "market_analysis": {
+      "recommendation": "LONG",
+      "confidence": 0.6461538461538461,
+      "reasoning": [
+        "Uptrend confirmed",
+        "Bearish sentiment",
+        "Near resistance level",
+        "Bull Market environment"
+      ],
+      "technical_data": {
+        "rsi": 43.485158034080634,
+        "price_vs_ma200": 0.2768807507107514,
+        "trend_direction": "up",
+        "volume_trend": "decreasing",
+        "volatility": 0.3292237610717959,
+        "support_resistance": "near_resistance",
+        "news_sentiment": "bearish",
+        "analyst_rating": "sell",
+        "market_regime": "bull_market",
+        "sector_performance": 0.11644644832231171
+      }
+    },
+    "position_type": "LONG"
+  },
+  "ZM": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.7098412545911905,
+    "total_return": 0.3166983685235526,
+    "excess_return": 0.1326983685235526,
+    "win_rate": 0.4746801891340562,
+    "max_drawdown": -0.08811468396824897,
+    "sharpe_ratio": 2.097389002275529,
+    "performance_score": 70.98412545911906,
+    "risk_level": "Medium",
+    "allocation": 0.485,
+    "description": "Connors_RSI selected for SHORT position. Market Analysis: Downtrend confirmed",
+    "market_analysis": {
+      "recommendation": "SHORT",
+      "confidence": 0.95,
+      "reasoning": [
+        "Downtrend confirmed"
+      ],
+      "technical_data": {
+        "rsi": 55.31811411607185,
+        "price_vs_ma200": -0.21523172892238435,
+        "trend_direction": "down",
+        "volume_trend": "stable",
+        "volatility": 0.18867005840088033,
+        "support_resistance": "middle_range",
+        "news_sentiment": "neutral",
+        "analyst_rating": "sell",
+        "market_regime": "choppy",
+        "sector_performance": 0.0850838509339899
+      }
+    },
+    "position_type": "SHORT"
+  },
+  "SNOW": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.7679129329302848,
+    "total_return": 0.3396131925246088,
+    "excess_return": 0.1556131925246088,
+    "win_rate": 0.6596211008213678,
+    "max_drawdown": -0.2576804758418735,
+    "sharpe_ratio": 3.0633708489308797,
+    "performance_score": 76.79129329302849,
+    "risk_level": "Medium",
+    "allocation": 0.5399999999999999,
+    "description": "Connors_RSI selected for SHORT position. Market Analysis: Downtrend confirmed | Bullish sentiment | Near resistance level | Bear Market environment",
+    "market_analysis": {
+      "recommendation": "SHORT",
+      "confidence": 0.7999999999999999,
+      "reasoning": [
+        "Downtrend confirmed",
+        "Bullish sentiment",
+        "Near resistance level",
+        "Bear Market environment"
+      ],
+      "technical_data": {
+        "rsi": 32.17884405288264,
+        "price_vs_ma200": -0.24474005145906036,
+        "trend_direction": "down",
+        "volume_trend": "increasing",
+        "volatility": 0.32439224900232444,
+        "support_resistance": "near_resistance",
+        "news_sentiment": "bullish",
+        "analyst_rating": "buy",
+        "market_regime": "bear_market",
+        "sector_performance": 0.19373562444573583
+      }
+    },
+    "position_type": "SHORT"
+  },
+  "RBLX": {
+    "strategy": "KAMA",
+    "strategy_type": "Momentum",
+    "confidence": 0.7587267488318653,
+    "total_return": 0.3090503279633637,
+    "excess_return": 0.12505032796336368,
+    "win_rate": 0.6075609909275408,
+    "max_drawdown": -0.09561397177326604,
+    "sharpe_ratio": 2.2771548850026355,
+    "performance_score": 75.87267488318653,
+    "risk_level": "Medium",
+    "allocation": 0.585,
+    "description": "KAMA selected for LONG position. Market Analysis: Uptrend confirmed",
+    "market_analysis": {
+      "recommendation": "LONG",
+      "confidence": 0.95,
+      "reasoning": [
+        "Uptrend confirmed"
+      ],
+      "technical_data": {
+        "rsi": 34.05957163808725,
+        "price_vs_ma200": 0.2512408408853967,
+        "trend_direction": "up",
+        "volume_trend": "stable",
+        "volatility": 0.42912733981214446,
+        "support_resistance": "middle_range",
+        "news_sentiment": "neutral",
+        "analyst_rating": "hold",
+        "market_regime": "choppy",
+        "sector_performance": 0.027929172193616125
+      }
+    },
+    "position_type": "LONG"
+  },
+  "ETH-USD": {
+    "strategy": "KAMA",
+    "strategy_type": "Momentum",
+    "confidence": 0.6719512229183172,
+    "total_return": 0.2524052841752398,
+    "excess_return": 0.06840528417523978,
+    "win_rate": 0.5525913288663492,
+    "max_drawdown": -0.1212071126769272,
+    "sharpe_ratio": 1.643447254399992,
+    "performance_score": 67.19512229183172,
+    "risk_level": "Medium",
+    "allocation": 0.4618181818181818,
+    "description": "KAMA selected for LONG position. Market Analysis: Overbought RSI (77.6) | Uptrend confirmed | FOMO sentiment | Alt season environment",
+    "market_analysis": {
+      "recommendation": "LONG",
+      "confidence": 0.8727272727272727,
+      "reasoning": [
+        "Overbought RSI (77.6)",
+        "Uptrend confirmed",
+        "FOMO sentiment",
+        "Alt season environment"
+      ],
+      "technical_data": {
+        "rsi": 77.64208836476078,
+        "price_vs_ma200": 0.3585401996421733,
+        "trend_direction": "up",
+        "volume_trend": "stable",
+        "volatility": 0.4895576723568272,
+        "support_resistance": "middle_range",
+        "news_sentiment": "fomo",
+        "analyst_rating": "strong_buy",
+        "market_regime": "alt_season",
+        "sector_performance": -0.20011559648514776,
+        "is_crypto": true,
+        "btc_dominance": 46.083872375012554,
+        "defi_activity": "medium",
+        "regulatory_news": "neutral",
+        "whale_activity": "neutral"
+      }
+    },
+    "position_type": "LONG"
+  },
+  "DOGE-USD": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.7326733354104685,
+    "total_return": 0.33278555201150134,
+    "excess_return": 0.14878555201150134,
+    "win_rate": 0.6167015375434043,
+    "max_drawdown": -0.2687963045648364,
+    "sharpe_ratio": 2.606734214651397,
+    "performance_score": 73.26733354104685,
+    "risk_level": "Medium",
+    "allocation": 0.38,
+    "description": "Connors_RSI selected for SHORT position. Market Analysis: Overbought RSI (82.5) | Downtrend confirmed | Whales accumulating | Near key support level",
+    "market_analysis": {
+      "recommendation": "SHORT",
+      "confidence": 0.6,
+      "reasoning": [
+        "Overbought RSI (82.5)",
+        "Downtrend confirmed",
+        "Whales accumulating",
+        "Near key support level"
+      ],
+      "technical_data": {
+        "rsi": 82.45772545561208,
+        "price_vs_ma200": -0.19181589913265007,
+        "trend_direction": "down",
+        "volume_trend": "stable",
+        "volatility": 0.44758124879425476,
+        "support_resistance": "near_support",
+        "news_sentiment": "neutral",
+        "analyst_rating": "strong_buy",
+        "market_regime": "choppy",
+        "sector_performance": 0.2830121363990673,
+        "is_crypto": true,
+        "btc_dominance": 58.975770799054004,
+        "defi_activity": "high",
+        "regulatory_news": "neutral",
+        "whale_activity": "accumulating"
+      }
+    },
+    "position_type": "SHORT"
+  },
+  "SOL-USD": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.6904095312383912,
+    "total_return": 0.2267164852664403,
+    "excess_return": 0.04271648526644031,
+    "win_rate": 0.4800839707553431,
+    "max_drawdown": -0.11084995696298684,
+    "sharpe_ratio": 0.9873988054363445,
+    "performance_score": 69.04095312383912,
+    "risk_level": "Medium",
+    "allocation": 0.43142857142857144,
+    "description": "Connors_RSI selected for SHORT position. Market Analysis: Uptrend confirmed | Bearish sentiment | Negative regulatory news | Whales distributing | Near resistance level | BTC dominance period",
+    "market_analysis": {
+      "recommendation": "SHORT",
+      "confidence": 0.7714285714285715,
+      "reasoning": [
+        "Uptrend confirmed",
+        "Bearish sentiment",
+        "Negative regulatory news",
+        "Whales distributing",
+        "Near resistance level",
+        "BTC dominance period"
+      ],
+      "technical_data": {
+        "rsi": 46.87750774681839,
+        "price_vs_ma200": 0.25008345235787344,
+        "trend_direction": "up",
+        "volume_trend": "decreasing",
+        "volatility": 0.5704182112644633,
+        "support_resistance": "near_resistance",
+        "news_sentiment": "bearish",
+        "analyst_rating": "strong_buy",
+        "market_regime": "btc_dominance",
+        "sector_performance": -0.08151881412318707,
+        "is_crypto": true,
+        "btc_dominance": 43.92994534614201,
+        "defi_activity": "low",
+        "regulatory_news": "negative",
+        "whale_activity": "distributing"
+      }
+    },
+    "position_type": "SHORT"
+  },
+  "ADA-USD": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.7677421034638389,
+    "total_return": 0.2639528752714154,
+    "excess_return": 0.07995287527141542,
+    "win_rate": 0.49015338283953275,
+    "max_drawdown": -0.2882614167727795,
+    "sharpe_ratio": 2.4893987003869857,
+    "performance_score": 76.77421034638388,
+    "risk_level": "Medium",
+    "allocation": 0.516,
+    "description": "Connors_RSI selected for SHORT position. Market Analysis: Overbought RSI (75.3) | Downtrend confirmed | Negative regulatory news | Whales accumulating | Near key support level | Crypto Bull environment",
+    "market_analysis": {
+      "recommendation": "SHORT",
+      "confidence": 0.72,
+      "reasoning": [
+        "Overbought RSI (75.3)",
+        "Downtrend confirmed",
+        "Negative regulatory news",
+        "Whales accumulating",
+        "Near key support level",
+        "Crypto Bull environment"
+      ],
+      "technical_data": {
+        "rsi": 75.33640701838652,
+        "price_vs_ma200": -0.10712037032207122,
+        "trend_direction": "down",
+        "volume_trend": "increasing",
+        "volatility": 0.7284908956775618,
+        "support_resistance": "near_support",
+        "news_sentiment": "neutral",
+        "analyst_rating": "strong_sell",
+        "market_regime": "crypto_bull",
+        "sector_performance": 0.3408052028196479,
+        "is_crypto": true,
+        "btc_dominance": 42.16450577027979,
+        "defi_activity": "medium",
+        "regulatory_news": "negative",
+        "whale_activity": "accumulating"
+      }
+    },
+    "position_type": "SHORT"
+  },
+  "MATIC-USD": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.8197927440415524,
+    "total_return": 0.33560749332291795,
+    "excess_return": 0.15160749332291795,
+    "win_rate": 0.5027170943228241,
+    "max_drawdown": -0.1848535971822436,
+    "sharpe_ratio": 1.3809360860371283,
+    "performance_score": 81.97927440415525,
+    "risk_level": "Medium",
+    "allocation": 0.5290909090909091,
+    "description": "Connors_RSI selected for SHORT position. Market Analysis: Bearish sentiment | Whales accumulating | Near key support level | BTC dominance period",
+    "market_analysis": {
+      "recommendation": "SHORT",
+      "confidence": 0.7636363636363636,
+      "reasoning": [
+        "Bearish sentiment",
+        "Whales accumulating",
+        "Near key support level",
+        "BTC dominance period"
+      ],
+      "technical_data": {
+        "rsi": 55.03024365706944,
+        "price_vs_ma200": -0.04759352063715794,
+        "trend_direction": "sideways",
+        "volume_trend": "decreasing",
+        "volatility": 0.41535142023464033,
+        "support_resistance": "near_support",
+        "news_sentiment": "bearish",
+        "analyst_rating": "strong_sell",
+        "market_regime": "btc_dominance",
+        "sector_performance": -0.3223392353073837,
+        "is_crypto": true,
+        "btc_dominance": 44.38227727905493,
+        "defi_activity": "low",
+        "regulatory_news": "neutral",
+        "whale_activity": "accumulating"
+      }
+    },
+    "position_type": "SHORT"
+  },
+  "XRP-USD": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.7458634556915851,
+    "total_return": 0.23728668922922228,
+    "excess_return": 0.05328668922922228,
+    "win_rate": 0.5467841937320391,
+    "max_drawdown": -0.29085060694794407,
+    "sharpe_ratio": 2.0934825200708884,
+    "performance_score": 74.58634556915851,
+    "risk_level": "Medium",
+    "allocation": 0.43142857142857144,
+    "description": "Connors_RSI selected for SHORT position. Market Analysis: Overbought RSI (76.7) | Downtrend confirmed | FOMO sentiment | Positive regulatory news | Whales distributing | Near key support level | Crypto Bear environment",
+    "market_analysis": {
+      "recommendation": "SHORT",
+      "confidence": 0.7714285714285715,
+      "reasoning": [
+        "Overbought RSI (76.7)",
+        "Downtrend confirmed",
+        "FOMO sentiment",
+        "Positive regulatory news",
+        "Whales distributing",
+        "Near key support level",
+        "Crypto Bear environment"
+      ],
+      "technical_data": {
+        "rsi": 76.66420779708332,
+        "price_vs_ma200": -0.17775627191131416,
+        "trend_direction": "down",
+        "volume_trend": "decreasing",
+        "volatility": 0.5884971246237835,
+        "support_resistance": "near_support",
+        "news_sentiment": "fomo",
+        "analyst_rating": "hold",
+        "market_regime": "crypto_bear",
+        "sector_performance": -0.10790607509228706,
+        "is_crypto": true,
+        "btc_dominance": 59.16496349290866,
+        "defi_activity": "medium",
+        "regulatory_news": "positive",
+        "whale_activity": "distributing"
+      }
+    },
+    "position_type": "SHORT"
+  },
+  "NFLX": {
+    "strategy": "Chande_Kroll_Stop",
+    "strategy_type": "Risk Management",
+    "confidence": 0.7186969393307037,
+    "total_return": 0.22246160882386676,
+    "excess_return": 0.03846160882386676,
+    "win_rate": 0.6286681737513367,
+    "max_drawdown": -0.2752041406809641,
+    "sharpe_ratio": 0.968541702826357,
+    "performance_score": 71.86969393307037,
+    "risk_level": "Aggressive",
+    "allocation": 0.38,
+    "description": "Chande_Kroll_Stop selected for SHORT position. Market Analysis: Uptrend confirmed | Bear Market environment",
+    "market_analysis": {
+      "recommendation": "SHORT",
+      "confidence": 0.6,
+      "reasoning": [
+        "Uptrend confirmed",
+        "Bear Market environment"
+      ],
+      "technical_data": {
+        "rsi": 47.48636662592002,
+        "price_vs_ma200": 0.18397372236051535,
+        "trend_direction": "up",
+        "volume_trend": "stable",
+        "volatility": 0.19567527913092744,
+        "support_resistance": "middle_range",
+        "news_sentiment": "neutral",
+        "analyst_rating": "hold",
+        "market_regime": "bear_market",
+        "sector_performance": -0.17753355501437584,
+        "is_crypto": false
+      }
+    },
+    "position_type": "SHORT"
+  },
+  "NVDA": {
+    "strategy": "Ichimoku_Cloud",
+    "strategy_type": "Trend",
+    "confidence": 0.7782851801505254,
+    "total_return": 0.4148057193789556,
+    "excess_return": 0.2308057193789556,
+    "win_rate": 0.6743251880863469,
+    "max_drawdown": -0.17785195111834162,
+    "sharpe_ratio": 4.048487736223435,
+    "performance_score": 77.82851801505254,
+    "risk_level": "Medium",
+    "allocation": 0.585,
+    "description": "Ichimoku_Cloud selected for LONG position. Market Analysis: Oversold RSI (25.7) | Uptrend confirmed | Near key support level | Bull Market environment",
+    "market_analysis": {
+      "recommendation": "LONG",
+      "confidence": 0.95,
+      "reasoning": [
+        "Oversold RSI (25.7)",
+        "Uptrend confirmed",
+        "Near key support level",
+        "Bull Market environment"
+      ],
+      "technical_data": {
+        "rsi": 25.654219682119546,
+        "price_vs_ma200": 0.11679841520139539,
+        "trend_direction": "up",
+        "volume_trend": "decreasing",
+        "volatility": 0.4210244055647234,
+        "support_resistance": "near_support",
+        "news_sentiment": "neutral",
+        "analyst_rating": "buy",
+        "market_regime": "bull_market",
+        "sector_performance": 0.14243408751738856,
+        "is_crypto": false
+      }
+    },
+    "position_type": "LONG"
+  },
+  "MSFT": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.8195927408135616,
+    "total_return": 0.2369069796081783,
+    "excess_return": 0.052906979608178306,
+    "win_rate": 0.6134550631155803,
+    "max_drawdown": -0.19959829491955988,
+    "sharpe_ratio": 1.36878058949083,
+    "performance_score": 81.95927408135616,
+    "risk_level": "Medium",
+    "allocation": 0.5057142857142857,
+    "description": "Connors_RSI selected for SHORT position. Market Analysis: Bearish sentiment",
+    "market_analysis": {
+      "recommendation": "SHORT",
+      "confidence": 0.6857142857142856,
+      "reasoning": [
+        "Bearish sentiment"
+      ],
+      "technical_data": {
+        "rsi": 55.03303351538037,
+        "price_vs_ma200": 0,
+        "trend_direction": "sideways",
+        "volume_trend": "increasing",
+        "volatility": 0.2044284467532374,
+        "support_resistance": "middle_range",
+        "news_sentiment": "bearish",
+        "analyst_rating": "buy",
+        "market_regime": "choppy",
+        "sector_performance": 0.12104236878544311,
+        "is_crypto": false
+      }
+    },
+    "position_type": "SHORT"
+  },
+  "BTC-USD": {
+    "strategy": "HMA",
+    "strategy_type": "Momentum",
+    "confidence": 0.6592093236080753,
+    "total_return": 0.37022810679458235,
+    "excess_return": 0.18622810679458235,
+    "win_rate": 0.5103223201818006,
+    "max_drawdown": -0.2402635167354802,
+    "sharpe_ratio": 1.540843331671303,
+    "performance_score": 65.92093236080753,
+    "risk_level": "Medium",
+    "allocation": 0.43999999999999995,
+    "description": "HMA selected for LONG position. Market Analysis: Positive regulatory news | BTC dominance period",
+    "market_analysis": {
+      "recommendation": "LONG",
+      "confidence": 0.7999999999999999,
+      "reasoning": [
+        "Positive regulatory news",
+        "BTC dominance period"
+      ],
+      "technical_data": {
+        "rsi": 51.38389017704641,
+        "price_vs_ma200": 0,
+        "trend_direction": "sideways",
+        "volume_trend": "stable",
+        "volatility": 0.25617823606834916,
+        "support_resistance": "middle_range",
+        "news_sentiment": "neutral",
+        "analyst_rating": "buy",
+        "market_regime": "btc_dominance",
+        "sector_performance": -0.03480464999127514,
+        "is_crypto": true,
+        "btc_dominance": 56.33261466287939,
+        "defi_activity": "high",
+        "regulatory_news": "positive",
+        "whale_activity": "neutral"
+      }
+    },
+    "position_type": "LONG"
+  },
+  "TSLA": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.8247590462704332,
+    "total_return": 0.2573470864355993,
+    "excess_return": 0.07334708643559928,
+    "win_rate": 0.6621482335131057,
+    "max_drawdown": -0.14226715901891712,
+    "sharpe_ratio": 1.4338104998834271,
+    "performance_score": 82.47590462704332,
+    "risk_level": "Medium",
+    "allocation": 0.5399999999999999,
+    "description": "Connors_RSI selected for SHORT position. Market Analysis: ",
+    "market_analysis": {
+      "recommendation": "SHORT",
+      "confidence": 0.7999999999999999,
+      "reasoning": [],
+      "technical_data": {
+        "rsi": 54.21822074170196,
+        "price_vs_ma200": 0,
+        "trend_direction": "sideways",
+        "volume_trend": "stable",
+        "volatility": 0.4314815486181454,
+        "support_resistance": "middle_range",
+        "news_sentiment": "neutral",
+        "analyst_rating": "hold",
+        "market_regime": "choppy",
+        "sector_performance": -0.04837272326694292,
+        "is_crypto": false
+      }
+    },
+    "position_type": "SHORT"
+  },
+  "GOOGL": {
+    "strategy": "Connors_RSI",
+    "strategy_type": "Mean Reversion",
+    "confidence": 0.7179152455131838,
+    "total_return": 0.30819578789956625,
+    "excess_return": 0.12419578789956626,
+    "win_rate": 0.5518865440085614,
+    "max_drawdown": -0.11167891509744639,
+    "sharpe_ratio": 2.127588946456234,
+    "performance_score": 71.79152455131837,
+    "risk_level": "Medium",
+    "allocation": 0.485,
+    "description": "Connors_RSI selected for SHORT position. Market Analysis: Overbought RSI (71.7) | Near resistance level",
+    "market_analysis": {
+      "recommendation": "SHORT",
+      "confidence": 0.95,
+      "reasoning": [
+        "Overbought RSI (71.7)",
+        "Near resistance level"
+      ],
+      "technical_data": {
+        "rsi": 71.69988621360076,
+        "price_vs_ma200": 0,
+        "trend_direction": "sideways",
+        "volume_trend": "stable",
+        "volatility": 0.2062280150569978,
+        "support_resistance": "near_resistance",
+        "news_sentiment": "neutral",
+        "analyst_rating": "buy",
+        "market_regime": "choppy",
+        "sector_performance": 0.013441344743653577,
+        "is_crypto": false
+      }
+    },
+    "position_type": "SHORT"
+  },
+  "CRM": {
+    "strategy": "Ichimoku_Cloud",
+    "strategy_type": "Trend",
+    "confidence": 0.7283760376184315,
+    "total_return": 0.5426398705584389,
+    "excess_return": 0.3586398705584389,
+    "win_rate": 0.6379954666366672,
+    "max_drawdown": -0.2259216999675845,
+    "sharpe_ratio": 4.741428098059609,
+    "performance_score": 72.83760376184316,
+    "risk_level": "Medium",
+    "allocation": 0.41600000000000004,
+    "description": "Ichimoku_Cloud selected for LONG position. Market Analysis: ",
+    "market_analysis": {
+      "recommendation": "LONG",
+      "confidence": 0.72,
+      "reasoning": [],
+      "technical_data": {
+        "rsi": 40.9416364165733,
+        "price_vs_ma200": 0,
+        "trend_direction": "sideways",
+        "volume_trend": "increasing",
+        "volatility": 0.2883879602925311,
+        "support_resistance": "middle_range",
+        "news_sentiment": "neutral",
+        "analyst_rating": "buy",
+        "market_regime": "choppy",
+        "sector_performance": 0.1920894010124024,
+        "is_crypto": false
+      }
+    },
+    "position_type": "LONG"
+  }
+}

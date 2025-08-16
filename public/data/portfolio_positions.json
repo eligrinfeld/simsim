@@ -1,0 +1,68 @@
+[
+  {
+    "ticker": "AAPL",
+    "shares": 0,
+    "currentPrice": 207.33,
+    "allocation": 0.0,
+    "marketValue": 0.0,
+    "dailyVaR": 0.0,
+    "beta": 0.0,
+    "volatility": 0.0,
+    "maxDrawdown": 0.0
+  },
+  {
+    "ticker": "MSFT",
+    "shares": 0,
+    "currentPrice": 207.33,
+    "allocation": 0.0,
+    "marketValue": 0.0,
+    "dailyVaR": 0.0,
+    "beta": 0.0,
+    "volatility": 0.0,
+    "maxDrawdown": 0.0
+  },
+  {
+    "ticker": "NVDA",
+    "shares": 96,
+    "currentPrice": 207.33,
+    "allocation": 20.0,
+    "marketValue": 19904.13,
+    "dailyVaR": 0.0,
+    "beta": 0.0,
+    "volatility": 0.0,
+    "maxDrawdown": 0.0
+  },
+  {
+    "ticker": "AMZN",
+    "shares": 0,
+    "currentPrice": 207.33,
+    "allocation": 0.0,
+    "marketValue": 0.0,
+    "dailyVaR": 0.0,
+    "beta": 0.0,
+    "volatility": 0.0,
+    "maxDrawdown": 0.0
+  },
+  {
+    "ticker": "GOOGL",
+    "shares": 0,
+    "currentPrice": 207.33,
+    "allocation": 0.0,
+    "marketValue": 0.0,
+    "dailyVaR": 0.0,
+    "beta": 0.0,
+    "volatility": 0.0,
+    "maxDrawdown": 0.0
+  },
+  {
+    "ticker": "META",
+    "shares": 96,
+    "currentPrice": 207.33,
+    "allocation": 20.0,
+    "marketValue": 19904.13,
+    "dailyVaR": 0.0,
+    "beta": 0.0,
+    "volatility": 0.0,
+    "maxDrawdown": 0.0
+  }
+]
